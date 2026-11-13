@@ -58,7 +58,7 @@ type Cfg = {
   tiles: string[]
   showCores: boolean
   showCpuName: boolean
-  cpuTempInPanel: boolean
+  cpuChip: 'speed' | 'temp' | 'off'
   theme: 'dark' | 'light' | 'auto'
   dayStart: number
   nightStart: number
@@ -87,7 +87,7 @@ const DEFAULT: Cfg = {
   tiles: ['ram', 'disk:C', 'gpu', 'net'],
   showCores: true,
   showCpuName: true,
-  cpuTempInPanel: true,
+  cpuChip: 'speed',
   theme: 'dark',
   dayStart: 7,
   nightStart: 19,
@@ -187,7 +187,17 @@ function settingsDef(): Record<string, unknown> {
     ),
     leftTop: select('leftTop', '◧ Left side · top tile', cfg.left[0], opts, { ...splitOnly, version: LAYOUT_VERSION }),
     leftBottom: select('leftBottom', '◧ Left side · bottom tile', cfg.left[1], opts, { ...splitOnly, version: LAYOUT_VERSION }),
-    cpuTempInPanel: bool('cpuTempInPanel', '◧ CPU · show temperature next to CPU %', cfg.cpuTempInPanel),
+    cpuChip: select(
+      'cpuChip',
+      '◧ CPU · next to CPU %',
+      cfg.cpuChip,
+      [
+        { label: 'Clock speed (GHz)', value: 'speed' },
+        { label: 'Temperature', value: 'temp' },
+        { label: 'Nothing', value: 'off' }
+      ],
+      { version: '1.7.0' }
+    ),
     showCores: bool('showCores', '◧ CPU · show per-core bars', cfg.showCores),
     showCpuName: bool('showCpuName', '◧ CPU · show model name', cfg.showCpuName),
     clock24: bool('clock24', '◧ Clock · 24-hour time (off = AM/PM)', cfg.clock24, { version: '1.4.0' }),
@@ -323,7 +333,7 @@ function applySettings(s: Record<string, { value?: unknown }> | null | undefined
     tiles: [0, 1, 2, 3].map((i) => pick(`tile${i + 1}`, DEFAULT.tiles[i])),
     showCores: bool('showCores'),
     showCpuName: bool('showCpuName'),
-    cpuTempInPanel: bool('cpuTempInPanel'),
+    cpuChip: oneOf('cpuChip', ['speed', 'temp', 'off']),
     theme: oneOf('theme', ['dark', 'light', 'auto']),
     dayStart: Math.min(23, Math.max(0, n('dayStart'))),
     nightStart: Math.min(23, Math.max(0, n('nightStart'))),
@@ -700,6 +710,42 @@ async function readClaude(force = false): Promise<void> {
   }
 }
 
+// Current CPU clock. Windows exposes it without admin rights as base frequency × "% processor performance".
+let cpuGhz: number | null = null
+let speedBusy = false
+async function readCpuSpeed(): Promise<void> {
+  if (speedBusy) return
+  // LibreHardwareMonitor's per-core clocks are the most accurate when it's running
+  if (hw.cpuClock) {
+    cpuGhz = Math.round(hw.cpuClock / 10) / 100
+    return
+  }
+  if (!WIN) {
+    const mhz = os.cpus()[0]?.speed
+    cpuGhz = mhz ? Math.round(mhz / 10) / 100 : null
+    return
+  }
+  speedBusy = true
+  try {
+    const out = await run(
+      PS,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "$p = Get-CimInstance -ClassName Win32_PerfFormattedData_Counters_ProcessorInformation -Filter \"Name='_Total'\" -ErrorAction SilentlyContinue; if ($p) { '{0} {1}' -f $p.ProcessorFrequency, $p.PercentProcessorPerformance }"
+      ],
+      6000
+    )
+    const [freq, perf] = (out ?? '').trim().split(/\s+/).map(Number)
+    const base = Number.isFinite(freq) && freq > 0 ? freq : os.cpus()[0]?.speed
+    if (base && Number.isFinite(perf) && perf > 0) cpuGhz = Math.round((base * perf) / 1000) / 100
+    else if (base) cpuGhz = Math.round(base / 10) / 100
+  } finally {
+    speedBusy = false
+  }
+}
+
 let hwBusy = false
 async function readHw(): Promise<void> {
   if (hwBusy) return
@@ -726,7 +772,7 @@ async function readHw(): Promise<void> {
     hwBusy = false
   }
 }
-const needsCpuTemp = () => (cfg.cpuTempInPanel && shownCpuPanel()) || shown().includes('cpuTemp')
+const needsCpuTemp = () => (cfg.cpuChip === 'temp' && shownCpuPanel()) || shown().includes('cpuTemp')
 const shownCpuPanel = () => cfg.layout === 'full' || shown().includes('cpu')
 // Every tile currently on screen
 const shown = (): string[] => [...(cfg.layout === 'split' ? cfg.left : []), ...cfg.tiles]
@@ -758,6 +804,7 @@ function sendStats(): void {
       net,
       disks: readDisks(),
       hw,
+      cpuGhz,
       claude,
       uptime: os.uptime(),
       host: os.hostname(),
@@ -838,7 +885,8 @@ function schedule(): void {
     DeskThing.setInterval(async () => readHw(), Math.max(2000, ms * 2)),
     // readClaude only calls the API once the chosen interval (30 s – 10 min) has passed
     DeskThing.setInterval(async () => readClaude(), 5000),
-    DeskThing.setInterval(async () => readNetTotals(), 10000)
+    DeskThing.setInterval(async () => readNetTotals(), 10000),
+    DeskThing.setInterval(async () => readCpuSpeed(), Math.max(2000, ms * 2))
   ]
 }
 
@@ -879,7 +927,7 @@ const start = async (): Promise<void> => {
   }) as never)
 
   startPreviewServer()
-  await Promise.all([readGpu(), readNet(), readHw(), readClaude(true), readNetTotals()])
+  await Promise.all([readGpu(), readNet(), readHw(), readClaude(true), readNetTotals(), readCpuSpeed()])
   schedule()
   broadcast(configMsg())
 }

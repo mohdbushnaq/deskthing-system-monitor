@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0
+- CPU tile shows the live clock speed in GHz next to the CPU % instead of the temperature (setting: Clock speed / Temperature / Nothing). Read from Windows without admin rights, or from LibreHardwareMonitor when it's running.
+- Value rows (CPU %, GPU % with temperature) and the date under the clock shrink to fit their tile, so nothing spills out at 100% or with long dates.
+
 ## 1.6.0
 - All three columns are now the same width; tiles and their text, numbers and graphs fit the equal columns.
 - When the CPU temperature comes from the Windows thermal zone and never changes (a fixed motherboard value on many PCs), it's shown dimmed as "~28°C" and the CPU temp tile says "not live". Use LibreHardwareMonitor for the real CPU temperature.

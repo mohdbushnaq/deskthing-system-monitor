@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { StrictMode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { DeskThing } from '@deskthing/client'
 import '@fontsource-variable/outfit'
@@ -12,7 +12,7 @@ type Cfg = {
   tiles: string[]
   showCores: boolean
   showCpuName: boolean
-  cpuTempInPanel: boolean
+  cpuChip: 'speed' | 'temp' | 'off'
   theme: 'dark' | 'light' | 'auto'
   dayStart: number
   nightStart: number
@@ -35,6 +35,7 @@ type Stats = {
   memTotal: number
   gpu: { name: string; use: number; temp: number; memUsed: number; memTotal: number; power: number | null } | null
   net: { down: number; up: number; totalDown: number | null; totalUp: number | null } | null
+  cpuGhz: number | null
   claude: { windows: { key: string; label: string; pct: number; resetsAt: string | null }[]; error: string | null } | null
   disks: Record<string, { used: number; total: number }>
   hw: {
@@ -57,7 +58,7 @@ const DEFAULT_CFG: Cfg = {
   tiles: ['ram', 'disk:C', 'gpu', 'net'],
   showCores: true,
   showCpuName: true,
-  cpuTempInPanel: true,
+  cpuChip: 'speed',
   theme: 'dark',
   dayStart: 7,
   nightStart: 19,
@@ -161,6 +162,29 @@ function FitText({ text, className, deps }: { text: string; className?: string; 
         {text}
       </text>
     </svg>
+  )
+}
+
+// Shrinks a single line of HTML so it never spills out of its box (works on the Car Thing's browser)
+function Fit({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  const outer = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLSpanElement>(null)
+  const [k, setK] = useState(1)
+  useLayoutEffect(() => {
+    const o = outer.current
+    const i = inner.current
+    if (!o || !i) return
+    const need = i.scrollWidth
+    const have = o.clientWidth
+    const next = need > have && need > 0 ? Math.max(0.4, have / need) : 1
+    if (Math.abs(next - k) > 0.01) setK(next)
+  })
+  return (
+    <div ref={outer} className={`fitrow ${className ?? ''}`} style={style}>
+      <span ref={inner} className="fitrow-in" style={{ transform: `scale(${k})` }}>
+        {children}
+      </span>
+    </div>
   )
 }
 
@@ -292,16 +316,17 @@ function App() {
     return (
       <>
         <Head label="CPU" icon="◆" right={cfg.showCpuName ? shortCpu(s!.cpuName) : undefined} />
-        <div className={`big${large ? ' xl' : ''}`}>
+        <Fit className={`big${large ? ' xl' : ''}`}>
           <span style={{ color: tone(s!.cpu.total) }}>{s!.cpu.total}</span>
           <span className="unit">%</span>
-          {cfg.cpuTempInPanel && c != null && (
+          {cfg.cpuChip === 'speed' && s!.cpuGhz != null && <span className="chip">{s!.cpuGhz.toFixed(2)} GHz</span>}
+          {cfg.cpuChip === 'temp' && c != null && (
             <span className={`chip${s!.hw.cpuTempStuck ? ' stuck' : ''}`} style={{ color: s!.hw.cpuTempStuck ? undefined : tempTone(c) }}>
               {s!.hw.cpuTempStuck ? '~' : ''}
               {temp(c)}
             </span>
           )}
-        </div>
+        </Fit>
         <div className="graph">
           <Spark data={hist.cpu} color="var(--accent)" len={len} />
         </div>
@@ -374,9 +399,9 @@ function App() {
           </div>
           <div className="clock-date">
             <span className="day">{DAYS[pc.getUTCDay()]}</span>
-            <span className="date">
+            <Fit className="date">
               {pc.getUTCDate()} {MONTHS[pc.getUTCMonth()]} {pc.getUTCFullYear()}
-            </span>
+            </Fit>
           </div>
         </div>
       )
@@ -392,13 +417,13 @@ function App() {
       return (
         <div className="tile" key={key}>
           <Head label="GPU" icon="▣" right={st.gpu.name} />
-          <div className="big">
+          <Fit className="big">
             <span style={{ color: tone(st.gpu.use) }}>{st.gpu.use}</span>
             <span className="unit">%</span>
             <span className="chip" style={{ color: tempTone(st.gpu.temp) }}>
               {temp(st.gpu.temp)}
             </span>
-          </div>
+          </Fit>
           <div className="graph">
             <Spark data={hist.gpu} color="var(--accent2)" len={len} />
           </div>

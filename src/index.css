@@ -199,3 +199,8 @@ body { font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Robo
 .cl-reset { font-size: 16px; fill: var(--text); opacity: 0.75; }
 .cl-reset { font-size: 19px; }
 .chip.stuck { color: var(--dim); opacity: 0.7; }
+
+/* single-line rows that shrink to fit their tile */
+.fitrow { width: 100%; overflow: hidden; white-space: nowrap; }
+.fitrow-in { display: inline-block; transform-origin: left center; white-space: nowrap; }
+.clock-date .date.fitrow { font-size: calc(4.4vh * var(--ts)); }
