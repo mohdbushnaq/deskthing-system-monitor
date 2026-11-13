@@ -71,6 +71,7 @@ type Cfg = {
   claudeCredPath: string
   claudeSessionKey: string
   claudeWindows: string[]
+  claudeEvery: number
   tempSource: 'auto' | 'lhm' | 'windows' | 'off'
   lhmUrl: string
   tempUnit: 'C' | 'F'
@@ -99,6 +100,7 @@ const DEFAULT: Cfg = {
   claudeCredPath: '~/.claude/.credentials.json',
   claudeSessionKey: '',
   claudeWindows: ['session', 'weekly', 'model'],
+  claudeEvery: 60,
   tempSource: 'auto',
   lhmUrl: 'http://localhost:8085/data.json',
   tempUnit: 'C',
@@ -208,6 +210,19 @@ function settingsDef(): Record<string, unknown> {
         { label: 'Weekly per model (e.g. Fable)', value: 'model' }
       ]
     },
+    claudeEvery: select(
+      'claudeEvery',
+      '✳ Claude usage · check every',
+      String(cfg.claudeEvery),
+      [
+        { label: '30 seconds', value: '30' },
+        { label: '1 minute', value: '60' },
+        { label: '2 minutes', value: '120' },
+        { label: '5 minutes', value: '300' },
+        { label: '10 minutes', value: '600' }
+      ],
+      { description: 'The tile keeps showing the last reading in between.' }
+    ),
     claudeSource: select(
       'claudeSource',
       '✳ Claude usage · sign-in',
@@ -319,6 +334,7 @@ function applySettings(s: Record<string, { value?: unknown }> | null | undefined
     claudeCredPath: str('claudeCredPath'),
     claudeSessionKey: typeof v('claudeSessionKey') === 'string' ? (v('claudeSessionKey') as string).trim() : '',
     claudeWindows: Array.isArray(v('claudeWindows')) ? (v('claudeWindows') as string[]) : DEFAULT.claudeWindows,
+    claudeEvery: Math.min(600, Math.max(30, n('claudeEvery'))),
     tempSource: oneOf('tempSource', ['auto', 'lhm', 'windows', 'off']),
     lhmUrl: str('lhmUrl'),
     tempUnit: oneOf('tempUnit', ['C', 'F']),
@@ -646,17 +662,19 @@ async function usageFromWeb(): Promise<UsageWindow[] | string> {
 let claudeBusy = false
 let lastClaudeKey = ''
 async function readClaude(force = false): Promise<void> {
-  if (!shown().includes('claude') || cfg.claudeSource === 'off') {
+  if (cfg.claudeSource === 'off') {
     claude = null
     return
   }
+  // Not on screen: don't call the API, but keep the last reading so it shows instantly if the tile comes back
+  if (!shown().includes('claude')) return
   const key = `${cfg.claudeSource}|${cfg.claudeCredPath}|${cfg.claudeSessionKey}`
   if (key !== lastClaudeKey) {
     webOrg = null
     lastClaudeKey = key
     force = true
   }
-  if (claudeBusy || (!force && claude && Date.now() - claude.at < 110000)) return
+  if (claudeBusy || (!force && claude && Date.now() - claude.at < cfg.claudeEvery * 1000 - 2000)) return
   claudeBusy = true
   try {
     let result: UsageWindow[] | string = 'Not signed in'
@@ -664,7 +682,11 @@ async function readClaude(force = false): Promise<void> {
     if (cfg.claudeSource === 'web' || (cfg.claudeSource === 'auto' && typeof result === 'string' && cfg.claudeSessionKey)) {
       result = await usageFromWeb()
     }
-    claude = typeof result === 'string' ? { windows: claude?.windows ?? [], error: result, at: Date.now() } : { windows: result, error: null, at: Date.now() }
+    // An empty or failed reading never wipes the last good one, so the tile doesn't flicker
+    claude =
+      typeof result === 'string' || !result.length
+        ? { windows: claude?.windows ?? [], error: typeof result === 'string' ? result : 'No usage data returned', at: Date.now() }
+        : { windows: result, error: null, at: Date.now() }
   } catch (e) {
     claude = { windows: claude?.windows ?? [], error: `Claude usage unavailable: ${(e as Error).message}`, at: Date.now() }
   } finally {
@@ -802,8 +824,8 @@ function schedule(): void {
     DeskThing.setInterval(async () => readGpu(), Math.max(1000, ms)),
     DeskThing.setInterval(async () => readNet(), Math.max(1000, ms)),
     DeskThing.setInterval(async () => readHw(), Math.max(2000, ms * 2)),
-    // Claude usage changes slowly; checking every 2 minutes is plenty and stays polite to the API
-    DeskThing.setInterval(async () => readClaude(), 15000),
+    // readClaude only calls the API once the chosen interval (30 s – 10 min) has passed
+    DeskThing.setInterval(async () => readClaude(), 5000),
     DeskThing.setInterval(async () => readNetTotals(), 10000)
   ]
 }
@@ -835,7 +857,7 @@ const start = async (): Promise<void> => {
     if (cfg.refreshMs !== before) schedule()
     broadcast(configMsg())
     void readHw()
-    void readClaude(true)
+    void readClaude()
     void handlePreviewToggle(data.payload)
   }) as never)
 

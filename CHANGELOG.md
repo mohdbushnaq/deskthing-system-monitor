@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1
+- Claude usage tile no longer flickers to "Waiting for usage"; it keeps the last reading between checks.
+- New setting: check Claude usage every 30 s, 1, 2, 5 or 10 minutes (default 1 minute).
+
 ## 1.4.0
 - New **Claude usage** tile: rings for the current session (5-hour), weekly, and per-model weekly limits such as Fable, each with time to reset. Signs in through a Claude Code login on the PC or a claude.ai session key.
 - Network tile shows total downloaded and uploaded since Windows started (MB/GB/TB).

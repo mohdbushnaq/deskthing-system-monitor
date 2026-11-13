@@ -221,6 +221,8 @@ function App() {
   const lenRef = useRef(historyLen(DEFAULT_CFG.refreshMs))
   // PC local time = Car Thing time + skew; keeps the seconds ticking smoothly between updates
   const skew = useRef<{ ms: number; tz: number } | null>(null)
+  // Last Claude reading that had data; a gap in updates never blanks the tile
+  const lastClaude = useRef<Stats['claude']>(null)
 
   useEffect(() => {
     const off = subscribe((data) => {
@@ -245,6 +247,8 @@ function App() {
       const p = data.payload as Stats
       last.current = Date.now()
       skew.current = { ms: p.now - Date.now(), tz: p.tz }
+      if (p.claude?.windows?.length) lastClaude.current = p.claude
+      else if (p.claude && lastClaude.current) lastClaude.current = { ...lastClaude.current, error: p.claude.error }
       setS(p)
       const n = lenRef.current
       setHist((h) => ({
@@ -526,7 +530,7 @@ function App() {
     }
 
     if (kind === 'claude') {
-      const c = st.claude
+      const c = lastClaude.current ?? st.claude
       const want = (k: string) => cfg.claudeWindows.includes(k.startsWith('model:') ? 'model' : k)
       const wins = (c?.windows ?? []).filter((w) => want(w.key)).slice(0, 3)
       if (!wins.length) return <Missing key={key} label="Claude" icon="✳" why={c?.error ?? 'Waiting for usage…'} />
