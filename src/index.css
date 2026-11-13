@@ -211,3 +211,11 @@ body { font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Robo
 .lfull .graph { flex-basis: 0; }
 .tile > * { flex-shrink: 0; }
 .tile > .graph, .tile > .bigring-wrap, .tile > .cores { flex-shrink: 1; }
+
+/* value row: number (shrinks if needed) + chip (always shown, fixed size) */
+.valrow { display: flex; align-items: center; min-width: 0; font-size: calc(9vh * var(--ns)); }
+.valrow.xl { font-size: calc(17vh * var(--ns)); }
+.valrow .valnum { flex: 1 1 auto; min-width: 0; width: auto; }
+.valrow .chip { flex: 0 0 auto; position: static; top: auto; font-size: calc(3.4vh * var(--ns)); margin-left: 1vh; }
+.valrow.xl .chip { font-size: calc(4.4vh * var(--ns)); }
+.valrow .chip { font-size: calc(2.8vh * var(--ns)); padding: 0.3em 0.55em; margin-left: 0.8vh; }

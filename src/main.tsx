@@ -317,9 +317,12 @@ function App() {
     return (
       <>
         <Head label="CPU" icon="◆" right={cfg.showCpuName ? shortCpu(s!.cpuName) : undefined} />
-        <Fit className={`big${large ? ' xl' : ''}`}>
-          <span style={{ color: tone(s!.cpu.total) }}>{s!.cpu.total}</span>
-          <span className="unit">%</span>
+        {/* the chip keeps its size; only the number shrinks if the tile is too narrow */}
+        <div className={`valrow big${large ? ' xl' : ''}`}>
+          <Fit className="valnum">
+            <span style={{ color: tone(s!.cpu.total) }}>{s!.cpu.total}</span>
+            <span className="unit">%</span>
+          </Fit>
           {cfg.cpuChip === 'speed' && s!.cpuGhz != null && <span className="chip">{s!.cpuGhz.toFixed(2)} GHz</span>}
           {cfg.cpuChip === 'temp' && c != null && (
             <span className={`chip${s!.hw.cpuTempStuck ? ' stuck' : ''}`} style={{ color: s!.hw.cpuTempStuck ? undefined : tempTone(c) }}>
@@ -327,7 +330,7 @@ function App() {
               {temp(c)}
             </span>
           )}
-        </Fit>
+        </div>
         <div className="graph">
           <Spark data={hist.cpu} color="var(--accent)" len={len} />
         </div>
@@ -418,13 +421,15 @@ function App() {
       return (
         <div className="tile" key={key}>
           <Head label="GPU" icon="▣" right={st.gpu.name} />
-          <Fit className="big">
-            <span style={{ color: tone(st.gpu.use) }}>{st.gpu.use}</span>
-            <span className="unit">%</span>
+          <div className="valrow big">
+            <Fit className="valnum">
+              <span style={{ color: tone(st.gpu.use) }}>{st.gpu.use}</span>
+              <span className="unit">%</span>
+            </Fit>
             <span className="chip" style={{ color: tempTone(st.gpu.temp) }}>
               {temp(st.gpu.temp)}
             </span>
-          </Fit>
+          </div>
           <div className="graph">
             <Spark data={hist.gpu} color="var(--accent2)" len={len} />
           </div>

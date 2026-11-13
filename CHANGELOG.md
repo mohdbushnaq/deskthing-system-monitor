@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.2
+- The GHz chip (and the GPU temperature chip) always shows: it keeps a fixed size and only the % number shrinks when space runs out. The CPU % is a little smaller to leave room.
+
 ## 1.7.1
 - Equal space above and below the tiles: rows can no longer grow past the screen.
 - CPU % and the date are no longer clipped at the bottom.
