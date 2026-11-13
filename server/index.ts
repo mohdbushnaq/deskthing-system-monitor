@@ -481,8 +481,12 @@ type Hw = {
   cpuPower: number | null
   cpuClock: number | null
   fans: { name: string; rpm: number }[]
+  // true when the reading hasn't moved for a long time (typical of the Windows ACPI thermal zone)
+  cpuTempStuck?: boolean
 }
 let hw: Hw = { cpuTemp: null, cpuTempSource: null, cpuPower: null, cpuClock: null, fans: [] }
+// recent CPU temperature readings, to spot a sensor that never changes
+const tempHistory: number[] = []
 
 type LhmNode = { Text?: string; Value?: string; Type?: string; SensorId?: string; ImageURL?: string; Children?: LhmNode[] }
 
@@ -711,7 +715,13 @@ async function readHw(): Promise<void> {
       next = { ...next, cpuTemp: w, cpuTempSource: w !== null ? 'Windows thermal zone' : null }
     }
     if (src === 'off') next = { ...next, cpuTemp: null, cpuTempSource: null }
-    hw = next
+    if (next.cpuTemp !== null) {
+      tempHistory.push(next.cpuTemp)
+      if (tempHistory.length > 30) tempHistory.shift()
+    }
+    // A real CPU sensor moves by at least a fraction of a degree within a minute or so; the ACPI zone often never does
+    const stuck = tempHistory.length >= 20 && Math.max(...tempHistory) - Math.min(...tempHistory) < 0.05
+    hw = { ...next, cpuTempStuck: stuck && next.cpuTempSource === 'Windows thermal zone' }
   } finally {
     hwBusy = false
   }

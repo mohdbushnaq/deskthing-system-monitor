@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0
+- All three columns are now the same width; tiles and their text, numbers and graphs fit the equal columns.
+- When the CPU temperature comes from the Windows thermal zone and never changes (a fixed motherboard value on many PCs), it's shown dimmed as "~28°C" and the CPU temp tile says "not live". Use LibreHardwareMonitor for the real CPU temperature.
+
 ## 1.5.3
 - The claude.ai session key setting now explains step by step where to find the key.
 

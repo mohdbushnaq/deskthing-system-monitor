@@ -43,6 +43,7 @@ type Stats = {
     cpuPower: number | null
     cpuClock: number | null
     fans: { name: string; rpm: number }[]
+    cpuTempStuck?: boolean
   }
   uptime: number
   host: string
@@ -295,7 +296,8 @@ function App() {
           <span style={{ color: tone(s!.cpu.total) }}>{s!.cpu.total}</span>
           <span className="unit">%</span>
           {cfg.cpuTempInPanel && c != null && (
-            <span className="chip" style={{ color: tempTone(c) }}>
+            <span className={`chip${s!.hw.cpuTempStuck ? ' stuck' : ''}`} style={{ color: s!.hw.cpuTempStuck ? undefined : tempTone(c) }}>
+              {s!.hw.cpuTempStuck ? '~' : ''}
               {temp(c)}
             </span>
           )}
@@ -419,7 +421,11 @@ function App() {
         )
       return (
         <div className="tile" key={key}>
-          <Head label="CPU temp" icon="✦" right={st.hw.cpuTempSource === 'LibreHardwareMonitor' ? 'LHM' : st.hw.cpuTempSource ? 'Windows' : undefined} />
+          <Head
+            label="CPU temp"
+            icon="✦"
+            right={st.hw.cpuTempStuck ? 'not live' : st.hw.cpuTempSource === 'LibreHardwareMonitor' ? 'LHM' : st.hw.cpuTempSource ? 'Windows' : undefined}
+          />
           <div className="big">
             <span style={{ color: tempTone(c) }}>{temp(c)}</span>
           </div>
