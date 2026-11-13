@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.1
+- Equal space above and below the tiles: rows can no longer grow past the screen.
+- CPU % and the date are no longer clipped at the bottom.
+- The GHz chip shows with two- and three-digit CPU % (the row now shrinks to fit instead of hiding it).
+- Graphs take only the space left in a tile, so labels under them are never cut off.
+
 ## 1.7.0
 - CPU tile shows the live clock speed in GHz next to the CPU % instead of the temperature (setting: Clock speed / Temperature / Nothing). Read from Windows without admin rights, or from LibreHardwareMonitor when it's running.
 - Value rows (CPU %, GPU % with temperature) and the date under the clock shrink to fit their tile, so nothing spills out at 100% or with long dates.

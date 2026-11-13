@@ -4,7 +4,7 @@
   "isAudioSource": false,
   "requires": [],
   "label": "System Monitor",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "version_code": 11.0,
   "compatible_server": [
     11

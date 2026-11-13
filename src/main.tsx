@@ -174,7 +174,8 @@ function Fit({ children, className, style }: { children: React.ReactNode; classN
     const o = outer.current
     const i = inner.current
     if (!o || !i) return
-    const need = i.scrollWidth
+    // offsetWidth ignores the transform, and width:max-content makes it the natural, unwrapped width
+    const need = i.offsetWidth
     const have = o.clientWidth
     const next = need > have && need > 0 ? Math.max(0.4, have / need) : 1
     if (Math.abs(next - k) > 0.01) setK(next)
