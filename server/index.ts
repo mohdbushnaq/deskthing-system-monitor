@@ -261,7 +261,7 @@ function settingsDef(): Record<string, unknown> {
         { label: 'Last 24 hours', value: '24h' },
         { label: 'Last 7 days', value: '7d' },
         { label: 'Last 30 days', value: '30d' },
-        { label: 'Total (everything Windows has recorded)', value: 'total' },
+        { label: 'Total (everything Windows still keeps)', value: 'total' },
         { label: 'Since Windows started', value: 'boot' }
       ],
       { version: '2.0.0', description: 'Read from Windows (the same figures as Settings → Network & internet → Data usage), all networks added together.' }
@@ -444,8 +444,15 @@ let totalsBusy = false
 // Uses the WinRT NetworkInformation API through PowerShell; all connection profiles (Wi-Fi, Ethernet…) are added up.
 let usageTotals: { period: string; down: number; up: number; at: number } | null = null
 let usageBusy = false
-const PERIOD_HOURS: Record<string, number> = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30, total: 24 * 365 * 5 }
-function dataUsageScript(hours: number): string {
+// "total" asks for several spans and keeps the largest answer: Windows only keeps a limited history and
+// returns nothing at all when the start date is older than what it has.
+const PERIOD_HOURS: Record<string, number[]> = {
+  '24h': [24],
+  '7d': [24 * 7],
+  '30d': [24 * 30],
+  total: [24 * 3650, 24 * 730, 24 * 365, 24 * 180, 24 * 120, 24 * 90, 24 * 60, 24 * 45, 24 * 30]
+}
+function dataUsageScript(spans: number[]): string {
   return [
     "$ErrorActionPreference = 'Stop'",
     'Add-Type -AssemblyName System.Runtime.WindowsRuntime',
@@ -454,18 +461,23 @@ function dataUsageScript(hours: number): string {
     '$listType = [System.Collections.Generic.IReadOnlyList[Windows.Networking.Connectivity.NetworkUsage]]',
     '$await = $asTask.MakeGenericMethod($listType)',
     '$end = [DateTimeOffset]::Now',
-    `$start = $end.AddHours(-${hours})`,
     '$states = New-Object Windows.Networking.Connectivity.NetworkUsageStates',
     '$states.Roaming = [Windows.Networking.Connectivity.TriStates]::DoNotCare',
     '$states.Shared = [Windows.Networking.Connectivity.TriStates]::DoNotCare',
-    '[UInt64]$rx = 0; [UInt64]$tx = 0',
-    'foreach ($p in [Windows.Networking.Connectivity.NetworkInformation]::GetConnectionProfiles()) {',
-    '  try {',
-    '    $task = $await.Invoke($null, @($p.GetNetworkUsageAsync($start, $end, [Windows.Networking.Connectivity.DataUsageGranularity]::Total, $states)))',
-    '    if ($task.Wait(10000)) { foreach ($u in $task.Result) { $rx += $u.BytesReceived; $tx += $u.BytesSent } }',
-    '  } catch { }',
+    '$profiles = [Windows.Networking.Connectivity.NetworkInformation]::GetConnectionProfiles()',
+    '[UInt64]$bestRx = 0; [UInt64]$bestTx = 0',
+    `foreach ($h in @(${spans.join(',')})) {`,
+    '  $start = $end.AddHours(-$h)',
+    '  [UInt64]$rx = 0; [UInt64]$tx = 0',
+    '  foreach ($p in $profiles) {',
+    '    try {',
+    '      $task = $await.Invoke($null, @($p.GetNetworkUsageAsync($start, $end, [Windows.Networking.Connectivity.DataUsageGranularity]::Total, $states)))',
+    '      if ($task.Wait(10000)) { foreach ($u in $task.Result) { $rx += $u.BytesReceived; $tx += $u.BytesSent } }',
+    '    } catch { }',
+    '  }',
+    '  if (($rx + $tx) -gt ($bestRx + $bestTx)) { $bestRx = $rx; $bestTx = $tx }',
     '}',
-    'Write-Output "$rx $tx"'
+    'Write-Output "$bestRx $bestTx"'
   ].join('\n')
 }
 async function readDataUsage(force = false): Promise<void> {
@@ -473,8 +485,8 @@ async function readDataUsage(force = false): Promise<void> {
   if (!force && usageTotals && usageTotals.period === cfg.netPeriod && Date.now() - usageTotals.at < 60000) return
   usageBusy = true
   try {
-    const encoded = Buffer.from(dataUsageScript(PERIOD_HOURS[cfg.netPeriod] ?? 720), 'utf16le').toString('base64')
-    const out = await run(PS, ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], 30000)
+    const encoded = Buffer.from(dataUsageScript(PERIOD_HOURS[cfg.netPeriod] ?? [720]), 'utf16le').toString('base64')
+    const out = await run(PS, ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], 90000)
     const [d, u] = (out ?? '').trim().split(/\s+/).map(Number)
     if (Number.isFinite(d) && Number.isFinite(u)) usageTotals = { period: cfg.netPeriod, down: d, up: u, at: Date.now() }
     else console.warn('[sysmon] Windows data usage unavailable:', (out ?? '').slice(0, 200))

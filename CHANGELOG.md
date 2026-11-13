@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.0.1
+- Network "Total" no longer shows 0: Windows returns nothing when asked for dates older than the history it keeps, so the app now tries several spans and uses the largest answer.
+
 ## 2.0.0
 - Tap any tile on the Car Thing to change what it shows; the choice is saved to the PC settings. Setting: *1 · Layout · tap a tile on the Car Thing to change it*.
 - Network totals now come from Windows' own Data usage records instead of the app's own counting: last 24 hours, 7 days, 30 days, total, or since Windows started.

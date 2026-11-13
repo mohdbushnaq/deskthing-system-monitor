@@ -1,4 +1,10 @@
-## System Monitor 2.0.0
+## System Monitor 2.0.1
+
+**Fix:** the network **Total** option showed 0. It now reports everything Windows still keeps.
+
+---
+
+## What's in 2.0
 
 A live PC dashboard for the Spotify Car Thing running DeskThing, by CutSmokey.
 
