@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.0
+- Network totals for a period you choose: today, this week, this month, this year, all time, or since Windows started. Totals are tracked per day and saved in DeskThing, including traffic while DeskThing was closed (as long as the PC wasn't restarted in between). History starts when you install 1.8.0.
+- Fixes values blinking (GHz, Claude usage) when an older copy of the app keeps running next to the new one after an update: the Car Thing now only listens to the newest copy.
+- Bigger GPU temperature chip that still fits the tile at 100% load.
+
 ## 1.7.2
 - The GHz chip (and the GPU temperature chip) always shows: it keeps a fixed size and only the % number shrinks when space runs out. The CPU % is a little smaller to leave room.
 

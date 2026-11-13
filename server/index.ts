@@ -72,6 +72,7 @@ type Cfg = {
   claudeSessionKey: string
   claudeWindows: string[]
   claudeEvery: number
+  netPeriod: 'boot' | 'day' | 'week' | 'month' | 'year' | 'all'
   tempSource: 'auto' | 'lhm' | 'windows' | 'off'
   lhmUrl: string
   tempUnit: 'C' | 'F'
@@ -101,6 +102,7 @@ const DEFAULT: Cfg = {
   claudeSessionKey: '',
   claudeWindows: ['session', 'weekly', 'model'],
   claudeEvery: 60,
+  netPeriod: 'day',
   tempSource: 'auto',
   lhmUrl: 'http://localhost:8085/data.json',
   tempUnit: 'C',
@@ -207,6 +209,22 @@ function settingsDef(): Record<string, unknown> {
     tile2: select('tile2', '◨ Right side · top right', cfg.tiles[1], opts, { version: LAYOUT_VERSION }),
     tile3: select('tile3', '◨ Right side · bottom left', cfg.tiles[2], opts, { version: LAYOUT_VERSION }),
     tile4: select('tile4', '◨ Right side · bottom right', cfg.tiles[3], opts, { version: LAYOUT_VERSION }),
+
+    // ---------- Network
+    netPeriod: select(
+      'netPeriod',
+      '⇅ Network · totals for',
+      cfg.netPeriod,
+      [
+        { label: 'Today', value: 'day' },
+        { label: 'This week (from Monday)', value: 'week' },
+        { label: 'This month', value: 'month' },
+        { label: 'This year', value: 'year' },
+        { label: 'All time (since installing 1.8.0)', value: 'all' },
+        { label: 'Since Windows started', value: 'boot' }
+      ],
+      { description: 'Totals are counted by this app and saved in DeskThing, including traffic while DeskThing was closed (as long as the PC was not restarted in between).' }
+    ),
 
     // ---------- Claude usage
     claudeWindows: {
@@ -347,6 +365,7 @@ function applySettings(s: Record<string, { value?: unknown }> | null | undefined
     claudeSessionKey: typeof v('claudeSessionKey') === 'string' ? (v('claudeSessionKey') as string).trim() : '',
     claudeWindows: Array.isArray(v('claudeWindows')) ? (v('claudeWindows') as string[]) : DEFAULT.claudeWindows,
     claudeEvery: Math.min(600, Math.max(30, n('claudeEvery'))),
+    netPeriod: oneOf('netPeriod', ['boot', 'day', 'week', 'month', 'year', 'all']),
     tempSource: oneOf('tempSource', ['auto', 'lhm', 'windows', 'off']),
     lhmUrl: str('lhmUrl'),
     tempUnit: oneOf('tempUnit', ['C', 'F']),
@@ -418,6 +437,79 @@ let net: { down: number; up: number; totalDown: number | null; totalUp: number |
 // Totals since Windows started, from 64-bit adapter counters (netstat's counters wrap at 4 GB)
 let netTotals: { down: number; up: number } | null = null
 let totalsBusy = false
+// ---- Download/upload history, kept per day and saved in DeskThing's app data
+type DayTotals = Record<string, { d: number; u: number }>
+type NetHistory = { days: DayTotals; last: { boot: number; down: number; up: number } | null }
+let netHistory: NetHistory = { days: {}, last: null }
+let historyDirty = false
+const bootTime = () => Math.round((Date.now() - os.uptime() * 1000) / 60000) * 60000
+const dayKey = (t: Date) => `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+
+async function loadNetHistory(): Promise<void> {
+  try {
+    const data = (await DeskThing.getData()) as { netHistory?: NetHistory } | null
+    if (data?.netHistory?.days) netHistory = data.netHistory
+  } catch {
+    /* first run */
+  }
+}
+function saveNetHistory(): void {
+  if (!historyDirty) return
+  historyDirty = false
+  try {
+    DeskThing.saveData({ netHistory } as never)
+  } catch {
+    /* ignore */
+  }
+}
+
+function recordNet(down: number, up: number): void {
+  const boot = bootTime()
+  const last = netHistory.last
+  let dd = 0
+  let du = 0
+  if (last && Math.abs(last.boot - boot) < 180000 && down >= last.down && up >= last.up) {
+    dd = down - last.down
+    du = up - last.up
+  } else if (last) {
+    // the PC restarted (or the counters reset): everything counted so far this boot is new
+    dd = down
+    du = up
+  } // very first run: start counting from now
+  netHistory.last = { boot, down, up }
+  if (dd || du) {
+    const k = dayKey(new Date())
+    const day = netHistory.days[k] ?? { d: 0, u: 0 }
+    netHistory.days[k] = { d: day.d + dd, u: day.u + du }
+    // keep about two years of days
+    const keys = Object.keys(netHistory.days).sort()
+    for (const old of keys.slice(0, Math.max(0, keys.length - 800))) delete netHistory.days[old]
+  }
+  historyDirty = true
+}
+
+function periodTotals(): { down: number; up: number } | null {
+  if (cfg.netPeriod === 'boot') return netTotals
+  const now = new Date()
+  let from = ''
+  if (cfg.netPeriod === 'day') from = dayKey(now)
+  else if (cfg.netPeriod === 'week') {
+    const m = new Date(now)
+    m.setDate(now.getDate() - ((now.getDay() + 6) % 7))
+    from = dayKey(m)
+  } else if (cfg.netPeriod === 'month') from = `${dayKey(now).slice(0, 7)}-01`
+  else if (cfg.netPeriod === 'year') from = `${now.getFullYear()}-01-01`
+  let down = 0
+  let up = 0
+  for (const [k, v] of Object.entries(netHistory.days)) {
+    if (k >= from) {
+      down += v.d
+      up += v.u
+    }
+  }
+  return { down, up }
+}
+
 async function readNetTotals(): Promise<void> {
   if (!WIN || totalsBusy) return
   totalsBusy = true
@@ -433,7 +525,10 @@ async function readNetTotals(): Promise<void> {
       8000
     )
     const [d, u] = (out ?? '').trim().split(/\s+/).map(Number)
-    if (Number.isFinite(d) && Number.isFinite(u)) netTotals = { down: d, up: u }
+    if (Number.isFinite(d) && Number.isFinite(u)) {
+      netTotals = { down: d, up: u }
+      recordNet(d, u)
+    }
   } finally {
     totalsBusy = false
   }
@@ -462,7 +557,8 @@ async function readNetOnce(): Promise<void> {
   const at = Date.now()
   if (lastNet && at > lastNet.at && rx >= lastNet.rx && tx >= lastNet.tx) {
     const s = (at - lastNet.at) / 1000
-    net = { down: (rx - lastNet.rx) / s, up: (tx - lastNet.tx) / s, totalDown: netTotals?.down ?? null, totalUp: netTotals?.up ?? null }
+    const tot = periodTotals()
+    net = { down: (rx - lastNet.rx) / s, up: (tx - lastNet.tx) / s, totalDown: tot?.down ?? null, totalUp: tot?.up ?? null }
   }
   lastNet = { rx, tx, at }
 }
@@ -788,6 +884,7 @@ function broadcast(msg: Msg): void {
   sseClients.forEach((res) => res.write(line))
 }
 
+const PROCESS_START = Date.now()
 let lastStats: Msg | null = null
 const configMsg = (): Msg => ({ request: 'config', payload: { ...cfg, version: manifest.version } })
 
@@ -805,6 +902,9 @@ function sendStats(): void {
       disks: readDisks(),
       hw,
       cpuGhz,
+      netPeriod: cfg.netPeriod,
+      // identifies this server process, so a leftover older copy can be ignored by the Car Thing
+      inst: PROCESS_START,
       claude,
       uptime: os.uptime(),
       host: os.hostname(),
@@ -886,6 +986,7 @@ function schedule(): void {
     // readClaude only calls the API once the chosen interval (30 s – 10 min) has passed
     DeskThing.setInterval(async () => readClaude(), 5000),
     DeskThing.setInterval(async () => readNetTotals(), 10000),
+    DeskThing.setInterval(async () => saveNetHistory(), 300000),
     DeskThing.setInterval(async () => readCpuSpeed(), Math.max(2000, ms * 2))
   ]
 }
@@ -927,12 +1028,14 @@ const start = async (): Promise<void> => {
   }) as never)
 
   startPreviewServer()
+  await loadNetHistory()
   await Promise.all([readGpu(), readNet(), readHw(), readClaude(true), readNetTotals(), readCpuSpeed()])
   schedule()
   broadcast(configMsg())
 }
 
 const stop = async (): Promise<void> => {
+  saveNetHistory()
   timers.forEach((t) => t())
   timers = []
   sseClients.forEach((r) => r.end())

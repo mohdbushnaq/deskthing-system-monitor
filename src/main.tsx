@@ -36,6 +36,8 @@ type Stats = {
   gpu: { name: string; use: number; temp: number; memUsed: number; memTotal: number; power: number | null } | null
   net: { down: number; up: number; totalDown: number | null; totalUp: number | null } | null
   cpuGhz: number | null
+  netPeriod?: string
+  inst?: number
   claude: { windows: { key: string; label: string; pct: number; resetsAt: string | null }[]; error: string | null } | null
   disks: Record<string, { used: number; total: number }>
   hw: {
@@ -138,6 +140,7 @@ function upFor(s: number): string {
   const m = Math.floor((s % 3600) / 60)
   return d ? `${d}d ${h}h` : `${h}h ${m}m`
 }
+const PERIOD: Record<string, string> = { day: 'Today', week: 'Week', month: 'Month', year: 'Year', all: 'All', boot: 'Boot' }
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -227,6 +230,7 @@ function App() {
   const skew = useRef<{ ms: number; tz: number } | null>(null)
   // Last Claude reading that had data; a gap in updates never blanks the tile
   const lastClaude = useRef<Stats['claude']>(null)
+  const newestInst = useRef(0)
 
   useEffect(() => {
     const off = subscribe((data) => {
@@ -249,6 +253,12 @@ function App() {
       }
       if (data.request !== 'stats' || !data.payload) return
       const p = data.payload as Stats
+      // If an older copy of the app is still running next to the new one, both send updates and values
+      // flicker. Only accept updates from the newest server process.
+      if (p.inst) {
+        if (p.inst < newestInst.current) return
+        newestInst.current = p.inst
+      } else if (newestInst.current) return
       last.current = Date.now()
       skew.current = { ms: p.now - Date.now(), tz: p.tz }
       if (p.claude?.windows?.length) lastClaude.current = p.claude
@@ -426,7 +436,7 @@ function App() {
               <span style={{ color: tone(st.gpu.use) }}>{st.gpu.use}</span>
               <span className="unit">%</span>
             </Fit>
-            <span className="chip" style={{ color: tempTone(st.gpu.temp) }}>
+            <span className="chip gputemp" style={{ color: tempTone(st.gpu.temp) }}>
               {temp(st.gpu.temp)}
             </span>
           </div>
@@ -495,11 +505,12 @@ function App() {
             </div>
           </div>
           {st.net?.totalDown != null && st.net.totalUp != null && (
-            <div className="sub totals">
+            <Fit className="sub totals">
+              <span className="period">{PERIOD[st.netPeriod ?? 'boot'] ?? ''}</span>
               <span className="arrow down">↓</span> {size(st.net.totalDown)}
               <span className="gap" />
               <span className="arrow up">↑</span> {size(st.net.totalUp)}
-            </div>
+            </Fit>
           )}
         </div>
       )

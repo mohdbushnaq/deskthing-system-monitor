@@ -219,3 +219,7 @@ body { font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Robo
 .valrow .chip { flex: 0 0 auto; position: static; top: auto; font-size: calc(3.4vh * var(--ns)); margin-left: 1vh; }
 .valrow.xl .chip { font-size: calc(4.4vh * var(--ns)); }
 .valrow .chip { font-size: calc(2.8vh * var(--ns)); padding: 0.3em 0.55em; margin-left: 0.8vh; }
+.valrow .chip.gputemp { font-size: calc(3.6vh * var(--ns)); }
+.sub.totals .period { color: var(--text); opacity: 0.7; font-weight: 650; margin-right: 0.6em; }
+.sub.totals { display: block; }
+.sub.totals .gap { display: inline-block; width: 0.8em; }

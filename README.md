@@ -15,7 +15,7 @@ A live PC dashboard for the Spotify Car Thing running [DeskThing](https://deskth
   - GPU: load, temperature, VRAM and power
   - GPU memory
   - CPU temperature
-  - Network up and down
+  - Network up and down, with totals for today, this week, month, year or all time
   - Fans
   - Claude usage: session, weekly and per-model (e.g. Fable) limits as rings
   - CPU power and clock
