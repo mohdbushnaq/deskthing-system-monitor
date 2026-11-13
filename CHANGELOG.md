@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1
+- Claude session reset countdown fixed: it now counts against the PC's clock, because the Car Thing's own clock isn't set (it showed thousands of days).
+- Bigger reset time in the Claude tile, and a bigger "% used" under the RAM, disk and VRAM values.
+
 ## 1.5.0
 - Text, number and graph sizes now default to the maximum (150 / 150 / 160 %). Applied once on update.
 - "Memory" is now "RAM". RAM, disk and GPU memory tiles use one large ring that fills the tile, with the value (and a smaller GB) and % inside it.

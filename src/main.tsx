@@ -328,13 +328,13 @@ function App() {
               strokeDasharray={`${(circ * Math.min(100, load)) / 100} ${circ}`}
               transform="rotate(-90 100 100)"
             />
-            <text x="100" y="94" className="br-main" style={{ fill: tone(load) }}>
+            <text x="100" y="86" className="br-main" style={{ fill: tone(load) }}>
               {value}
               <tspan className="br-unit" dx="4">
                 {unit}
               </tspan>
             </text>
-            <text x="100" y="132" className="br-sub">
+            <text x="100" y="128" className="br-sub">
               {sub}
             </text>
           </svg>
@@ -529,7 +529,8 @@ function App() {
           </>
         )
       }
-      const reset = session ? resetIn(session.resetsAt, clockNow) : ''
+      // the Car Thing's own clock isn't set, so count down against the PC's time
+      const reset = session ? resetIn(session.resetsAt, clockNow + (skew.current?.ms ?? 0)) : ''
       return (
         <div className="tile" key={key}>
           <Head
@@ -543,21 +544,21 @@ function App() {
               {weekly && arc(session ? 64 : 88, session ? 10 : 14, weekly.pct, 'var(--accent2)')}
               {session && (
                 <>
-                  <text x="100" y="76" className="cl-label" style={{ fill: 'var(--accent)' }}>
+                  <text x="100" y="72" className="cl-label" style={{ fill: 'var(--accent)' }}>
                     SESSION
                   </text>
-                  <text x="100" y="100" className="cl-main" style={{ fill: tone(session.pct) }}>
+                  <text x="100" y="95" className="cl-main" style={{ fill: tone(session.pct) }}>
                     {session.pct}%
                   </text>
                 </>
               )}
               {weekly && (
-                <text x="100" y={session ? 124 : 100} className={session ? 'cl-week' : 'cl-main'} style={{ fill: 'var(--accent2)' }}>
+                <text x="100" y={session ? 118 : 100} className={session ? 'cl-week' : 'cl-main'} style={{ fill: 'var(--accent2)' }}>
                   {session ? `WEEK ${weekly.pct}%` : `${weekly.pct}%`}
                 </text>
               )}
               {reset && (
-                <text x="100" y={session ? 141 : 124} className="cl-reset">
+                <text x="100" y={session ? 138 : 124} className="cl-reset">
                   ↻ {reset}
                 </text>
               )}

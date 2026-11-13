@@ -195,3 +195,5 @@ body { font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Robo
 .cl-reset { font-size: 12.5px; }
 .clock-date .date { font-size: min(calc(4.4vh * var(--ts)), 5.2vh); }
 .chip { white-space: nowrap; }
+.br-sub { font-size: 32px; fill: var(--text); opacity: 0.8; }
+.cl-reset { font-size: 16px; fill: var(--text); opacity: 0.75; }
