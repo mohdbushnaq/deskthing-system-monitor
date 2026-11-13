@@ -67,6 +67,10 @@ type Cfg = {
   graphScale: number
   accent: string
   clock24: boolean
+  claudeSource: 'auto' | 'code' | 'web' | 'off'
+  claudeCredPath: string
+  claudeSessionKey: string
+  claudeWindows: string[]
   tempSource: 'auto' | 'lhm' | 'windows' | 'off'
   lhmUrl: string
   tempUnit: 'C' | 'F'
@@ -90,7 +94,11 @@ const DEFAULT: Cfg = {
   numberScale: 100,
   graphScale: 100,
   accent: '#4fc3f7',
-  clock24: true,
+  clock24: false,
+  claudeSource: 'auto',
+  claudeCredPath: '~/.claude/.credentials.json',
+  claudeSessionKey: '',
+  claudeWindows: ['session', 'weekly', 'model'],
   tempSource: 'auto',
   lhmUrl: 'http://localhost:8085/data.json',
   tempUnit: 'C',
@@ -132,6 +140,7 @@ function tileOptions(): { label: string; value: string }[] {
     { label: 'Network up/down', value: 'net' },
     { label: 'Fans (needs LibreHardwareMonitor)', value: 'fans' },
     { label: 'CPU power & clock (needs LibreHardwareMonitor)', value: 'cpuPower' },
+    { label: 'Claude usage (session, weekly, Fable)', value: 'claude' },
     { label: 'Uptime & PC name', value: 'uptime' },
     { label: 'Empty', value: 'none' }
   ]
@@ -179,13 +188,48 @@ function settingsDef(): Record<string, unknown> {
     cpuTempInPanel: bool('cpuTempInPanel', '◧ CPU · show temperature next to CPU %', cfg.cpuTempInPanel),
     showCores: bool('showCores', '◧ CPU · show per-core bars', cfg.showCores),
     showCpuName: bool('showCpuName', '◧ CPU · show model name', cfg.showCpuName),
-    clock24: bool('clock24', '◧ Clock · 24-hour time', cfg.clock24),
+    clock24: bool('clock24', '◧ Clock · 24-hour time (off = AM/PM)', cfg.clock24, { version: '1.4.0' }),
 
     // ---------- Right side
     tile1: select('tile1', '◨ Right side · top left', cfg.tiles[0], opts, { version: LAYOUT_VERSION }),
     tile2: select('tile2', '◨ Right side · top right', cfg.tiles[1], opts, { version: LAYOUT_VERSION }),
     tile3: select('tile3', '◨ Right side · bottom left', cfg.tiles[2], opts, { version: LAYOUT_VERSION }),
     tile4: select('tile4', '◨ Right side · bottom right', cfg.tiles[3], opts, { version: LAYOUT_VERSION }),
+
+    // ---------- Claude usage
+    claudeWindows: {
+      id: 'claudeWindows',
+      type: SETTING_TYPES.MULTISELECT,
+      label: '✳ Claude usage · rings to show',
+      value: cfg.claudeWindows,
+      options: [
+        { label: 'Current session (5-hour)', value: 'session' },
+        { label: 'Weekly (all models)', value: 'weekly' },
+        { label: 'Weekly per model (e.g. Fable)', value: 'model' }
+      ]
+    },
+    claudeSource: select(
+      'claudeSource',
+      '✳ Claude usage · sign-in',
+      cfg.claudeSource,
+      [
+        { label: 'Auto (Claude Code login, else session key)', value: 'auto' },
+        { label: 'Claude Code login on this PC', value: 'code' },
+        { label: 'claude.ai session key', value: 'web' },
+        { label: 'Off', value: 'off' }
+      ],
+      {
+        description:
+          'Claude Code login: install Claude Code and sign in with your Claude account once; its saved login is read from the file below. Session key: paste the "sessionKey" cookie from claude.ai. It works like a password and is only stored in DeskThing on this PC.'
+      }
+    ),
+    claudeCredPath: { id: 'claudeCredPath', type: SETTING_TYPES.STRING, label: '✳ Claude Code login file', value: cfg.claudeCredPath },
+    claudeSessionKey: {
+      id: 'claudeSessionKey',
+      type: SETTING_TYPES.STRING,
+      label: '✳ claude.ai session key',
+      value: cfg.claudeSessionKey
+    },
 
     // ---------- Look
     theme: select('theme', '🎨 Theme', cfg.theme, [
@@ -271,6 +315,10 @@ function applySettings(s: Record<string, { value?: unknown }> | null | undefined
     graphScale: n('graphScale'),
     accent: str('accent'),
     clock24: bool('clock24'),
+    claudeSource: oneOf('claudeSource', ['auto', 'code', 'web', 'off']),
+    claudeCredPath: str('claudeCredPath'),
+    claudeSessionKey: typeof v('claudeSessionKey') === 'string' ? (v('claudeSessionKey') as string).trim() : '',
+    claudeWindows: Array.isArray(v('claudeWindows')) ? (v('claudeWindows') as string[]) : DEFAULT.claudeWindows,
     tempSource: oneOf('tempSource', ['auto', 'lhm', 'windows', 'off']),
     lhmUrl: str('lhmUrl'),
     tempUnit: oneOf('tempUnit', ['C', 'F']),
@@ -338,7 +386,30 @@ async function readGpuOnce(): Promise<void> {
 
 // ================================================================ Network
 let lastNet: { rx: number; tx: number; at: number } | null = null
-let net: { down: number; up: number } | null = null
+let net: { down: number; up: number; totalDown: number | null; totalUp: number | null } | null = null
+// Totals since Windows started, from 64-bit adapter counters (netstat's counters wrap at 4 GB)
+let netTotals: { down: number; up: number } | null = null
+let totalsBusy = false
+async function readNetTotals(): Promise<void> {
+  if (!WIN || totalsBusy) return
+  totalsBusy = true
+  try {
+    const out = await run(
+      PS,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '$s = Get-NetAdapterStatistics -ErrorAction SilentlyContinue; if ($s) { "{0} {1}" -f ($s | Measure-Object ReceivedBytes -Sum).Sum, ($s | Measure-Object SentBytes -Sum).Sum }'
+      ],
+      8000
+    )
+    const [d, u] = (out ?? '').trim().split(/\s+/).map(Number)
+    if (Number.isFinite(d) && Number.isFinite(u)) netTotals = { down: d, up: u }
+  } finally {
+    totalsBusy = false
+  }
+}
 const NETSTAT = [...(WIN ? [path.join(SYS32, 'netstat.exe')] : []), 'netstat']
 let netBusy = false
 async function readNet(): Promise<void> {
@@ -363,7 +434,7 @@ async function readNetOnce(): Promise<void> {
   const at = Date.now()
   if (lastNet && at > lastNet.at && rx >= lastNet.rx && tx >= lastNet.tx) {
     const s = (at - lastNet.at) / 1000
-    net = { down: (rx - lastNet.rx) / s, up: (tx - lastNet.tx) / s }
+    net = { down: (rx - lastNet.rx) / s, up: (tx - lastNet.tx) / s, totalDown: netTotals?.down ?? null, totalUp: netTotals?.up ?? null }
   }
   lastNet = { rx, tx, at }
 }
@@ -467,6 +538,140 @@ async function readWindowsTemp(): Promise<number | null> {
   return c > 5 && c < 125 ? Math.round(c * 10) / 10 : null
 }
 
+// ================================================================ Claude usage
+type UsageWindow = { key: string; label: string; pct: number; resetsAt: string | null }
+type Claude = { windows: UsageWindow[]; error: string | null; at: number } | null
+let claude: Claude = null
+
+const expandHome = (p: string) => (p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p)
+
+function prettyModel(key: string): string {
+  // seven_day_opus → Opus, seven_day_fable → Fable, seven_day_oauth_apps → Apps
+  const name = key.replace(/^seven_day_?/, '').replace(/_/g, ' ').trim()
+  if (/oauth/i.test(name)) return 'Apps'
+  return name ? name.replace(/\b\w/g, (c) => c.toUpperCase()) : 'Model'
+}
+
+function parseUsage(data: Record<string, unknown>): UsageWindow[] {
+  const out: UsageWindow[] = []
+  const win = (k: string, label: string, raw: unknown) => {
+    const w = raw as { utilization?: unknown; resets_at?: unknown } | null
+    const pct = w ? num(w.utilization) : null
+    if (pct === null) return
+    out.push({ key: k, label, pct: Math.max(0, Math.min(100, Math.round(pct))), resetsAt: typeof w!.resets_at === 'string' ? w!.resets_at : null })
+  }
+  win('session', 'Session', data.five_hour)
+  win('weekly', 'Weekly', data.seven_day)
+  // Per-model weekly caps (Fable, Opus, Sonnet…). Skip ones that are switched off (null) or empty.
+  for (const [k, raw] of Object.entries(data)) {
+    if (!/^seven_day_./.test(k) || /cowork|oauth/i.test(k) || !raw) continue
+    const w = raw as { utilization?: unknown }
+    if (num(w.utilization) === null) continue
+    win(`model:${k}`, prettyModel(k), raw)
+  }
+  // Newer responses may group the per-model cap under another name
+  const scoped = (data.weekly_scoped ?? data.seven_day_scoped) as Record<string, unknown> | undefined
+  if (scoped && typeof scoped === 'object') {
+    if ('utilization' in scoped) win('model:scoped', typeof scoped.model === 'string' ? prettyModel(scoped.model) : 'Model', scoped)
+    else for (const [k, raw] of Object.entries(scoped)) win(`model:${k}`, prettyModel(k), raw)
+  }
+  return out
+}
+
+async function getJson(url: string, headers: Record<string, string>): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const ctl = new AbortController()
+  const t = setTimeout(() => ctl.abort(), 8000)
+  try {
+    const res = await fetch(url, { headers, signal: ctl.signal })
+    const text = await res.text()
+    let body: unknown = null
+    try {
+      body = JSON.parse(text)
+    } catch {
+      body = text.slice(0, 200)
+    }
+    return { ok: res.ok, status: res.status, body }
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+async function usageFromClaudeCode(): Promise<UsageWindow[] | string> {
+  let token: string | undefined
+  try {
+    const raw = JSON.parse(fs.readFileSync(expandHome(cfg.claudeCredPath), 'utf8'))
+    token = raw?.claudeAiOauth?.accessToken ?? raw?.access_token
+  } catch {
+    return 'No Claude Code login found on this PC'
+  }
+  if (!token) return 'Claude Code login file has no token'
+  const r = await getJson('https://api.anthropic.com/api/oauth/usage', {
+    Authorization: `Bearer ${token}`,
+    'anthropic-beta': 'oauth-2025-04-20',
+    'Content-Type': 'application/json',
+    'User-Agent': 'claude-code/2 (deskthing-system-monitor)'
+  })
+  if (r.status === 401) return 'Claude Code login expired: open Claude Code once to refresh it'
+  if (!r.ok) return `Claude usage request failed (${r.status})`
+  return parseUsage(r.body as Record<string, unknown>)
+}
+
+let webOrg: string | null = null
+async function usageFromWeb(): Promise<UsageWindow[] | string> {
+  const key = cfg.claudeSessionKey.replace(/^sessionKey=/, '')
+  if (!key) return 'Add your claude.ai session key in settings'
+  const headers = {
+    Cookie: `sessionKey=${key}`,
+    Accept: 'application/json',
+    'anthropic-client-platform': 'web_claude_ai',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'
+  }
+  if (!webOrg) {
+    const o = await getJson('https://claude.ai/api/organizations', headers)
+    if (o.status === 401 || o.status === 403) return 'claude.ai rejected the session key (expired, or blocked)'
+    if (!o.ok || !Array.isArray(o.body)) return `claude.ai request failed (${o.status})`
+    const orgs = o.body as { uuid?: string; capabilities?: string[] }[]
+    webOrg = (orgs.find((x) => x.capabilities?.includes('chat')) ?? orgs[0])?.uuid ?? null
+    if (!webOrg) return 'No Claude organisation found for this account'
+  }
+  const r = await getJson(`https://claude.ai/api/organizations/${webOrg}/usage`, headers)
+  if (r.status === 401 || r.status === 403) {
+    webOrg = null
+    return 'claude.ai rejected the session key (expired, or blocked)'
+  }
+  if (!r.ok) return `claude.ai usage request failed (${r.status})`
+  return parseUsage(r.body as Record<string, unknown>)
+}
+
+let claudeBusy = false
+let lastClaudeKey = ''
+async function readClaude(force = false): Promise<void> {
+  if (!shown().includes('claude') || cfg.claudeSource === 'off') {
+    claude = null
+    return
+  }
+  const key = `${cfg.claudeSource}|${cfg.claudeCredPath}|${cfg.claudeSessionKey}`
+  if (key !== lastClaudeKey) {
+    webOrg = null
+    lastClaudeKey = key
+    force = true
+  }
+  if (claudeBusy || (!force && claude && Date.now() - claude.at < 110000)) return
+  claudeBusy = true
+  try {
+    let result: UsageWindow[] | string = 'Not signed in'
+    if (cfg.claudeSource === 'code' || cfg.claudeSource === 'auto') result = await usageFromClaudeCode()
+    if (cfg.claudeSource === 'web' || (cfg.claudeSource === 'auto' && typeof result === 'string' && cfg.claudeSessionKey)) {
+      result = await usageFromWeb()
+    }
+    claude = typeof result === 'string' ? { windows: claude?.windows ?? [], error: result, at: Date.now() } : { windows: result, error: null, at: Date.now() }
+  } catch (e) {
+    claude = { windows: claude?.windows ?? [], error: `Claude usage unavailable: ${(e as Error).message}`, at: Date.now() }
+  } finally {
+    claudeBusy = false
+  }
+}
+
 let hwBusy = false
 async function readHw(): Promise<void> {
   if (hwBusy) return
@@ -519,6 +724,7 @@ function sendStats(): void {
       net,
       disks: readDisks(),
       hw,
+      claude,
       uptime: os.uptime(),
       host: os.hostname(),
       now: Date.now(),
@@ -595,7 +801,10 @@ function schedule(): void {
     // these start Windows tools, so they are capped at once a second
     DeskThing.setInterval(async () => readGpu(), Math.max(1000, ms)),
     DeskThing.setInterval(async () => readNet(), Math.max(1000, ms)),
-    DeskThing.setInterval(async () => readHw(), Math.max(2000, ms * 2))
+    DeskThing.setInterval(async () => readHw(), Math.max(2000, ms * 2)),
+    // Claude usage changes slowly; checking every 2 minutes is plenty and stays polite to the API
+    DeskThing.setInterval(async () => readClaude(), 15000),
+    DeskThing.setInterval(async () => readNetTotals(), 10000)
   ]
 }
 
@@ -626,6 +835,7 @@ const start = async (): Promise<void> => {
     if (cfg.refreshMs !== before) schedule()
     broadcast(configMsg())
     void readHw()
+    void readClaude(true)
     void handlePreviewToggle(data.payload)
   }) as never)
 
@@ -635,7 +845,7 @@ const start = async (): Promise<void> => {
   }) as never)
 
   startPreviewServer()
-  await Promise.all([readGpu(), readNet(), readHw()])
+  await Promise.all([readGpu(), readNet(), readHw(), readClaude(true), readNetTotals()])
   schedule()
   broadcast(configMsg())
 }

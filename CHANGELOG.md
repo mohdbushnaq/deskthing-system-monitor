@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+- New **Claude usage** tile: rings for the current session (5-hour), weekly, and per-model weekly limits such as Fable, each with time to reset. Signs in through a Claude Code login on the PC or a claude.ai session key.
+- Network tile shows total downloaded and uploaded since Windows started (MB/GB/TB).
+- Clock now defaults to 12-hour time with AM/PM.
+- Shorter grey labels that never get cut off: CPU model only (e.g. i9-13900K), "GB used", "GB free", "VRAM 5.7 GB".
+
 ## 1.3.1
 - Values on the Memory, Disk and GPU memory tiles no longer collide with the ring gauges ("GB" moved to the line below).
 - After an update, the Car Thing reloads a cached older copy of the app by itself.

@@ -17,6 +17,7 @@ A live PC dashboard for the Spotify Car Thing running [DeskThing](https://deskth
   - CPU temperature
   - Network up and down
   - Fans
+  - Claude usage: session, weekly and per-model (e.g. Fable) limits as rings
   - CPU power and clock
   - Uptime and PC name
 - **Themes:** dark, light, or auto (light by day and dark by night, at hours you choose).
@@ -42,6 +43,15 @@ New versions then show up behind DeskThing's **Update** button.
 **From a file**
 1. Download `sysmon-vX.Y.Z.zip` from [Releases](https://github.com/mohdbushnaq/deskthing-system-monitor/releases/latest).
 2. In DeskThing, go to **Add App**, load the zip from file, then click **Initialize App**.
+
+## Claude usage tile
+
+The tile can sign in two ways (set under **Claude usage · sign-in**):
+
+- **Claude Code login:** if Claude Code is installed on the PC and signed in with your Claude account, the app reads its saved login (`~/.claude/.credentials.json`). Nothing to paste.
+- **claude.ai session key:** in your browser on claude.ai, open DevTools (F12) → Application → Cookies → `https://claude.ai`, and copy the value of `sessionKey`. Treat it like a password. It's stored only in DeskThing's settings on your PC.
+
+Usage is checked every 2 minutes.
 
 ## CPU temperature, fans and power
 

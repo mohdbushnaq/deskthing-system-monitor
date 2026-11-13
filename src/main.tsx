@@ -21,6 +21,7 @@ type Cfg = {
   graphScale: number
   accent: string
   clock24: boolean
+  claudeWindows: string[]
   tempUnit: 'C' | 'F'
   refreshMs: number
   warn: number
@@ -33,7 +34,8 @@ type Stats = {
   memUsed: number
   memTotal: number
   gpu: { name: string; use: number; temp: number; memUsed: number; memTotal: number; power: number | null } | null
-  net: { down: number; up: number } | null
+  net: { down: number; up: number; totalDown: number | null; totalUp: number | null } | null
+  claude: { windows: { key: string; label: string; pct: number; resetsAt: string | null }[]; error: string | null } | null
   disks: Record<string, { used: number; total: number }>
   hw: {
     cpuTemp: number | null
@@ -62,7 +64,8 @@ const DEFAULT_CFG: Cfg = {
   numberScale: 100,
   graphScale: 100,
   accent: '#4fc3f7',
-  clock24: true,
+  clock24: false,
+  claudeWindows: ['session', 'weekly', 'model'],
   tempUnit: 'C',
   refreshMs: 1000,
   warn: 60,
@@ -99,6 +102,33 @@ function rate(bps: number): [string, string] {
   if (bps >= 1048576) return [(bps / 1048576).toFixed(1), 'MB/s']
   if (bps >= 1024) return [(bps / 1024).toFixed(0), 'KB/s']
   return [String(Math.round(bps)), 'B/s']
+}
+// "13th Gen Intel(R) Core(TM) i9-13900K" → "i9-13900K", "AMD Ryzen 7 5800X 8-Core Processor" → "Ryzen 7 5800X"
+function shortCpu(name: string): string {
+  const n = name.replace(/\((R|TM)\)/gi, '').replace(/\s+/g, ' ').trim()
+  const m =
+    n.match(/\b(i[3579]-\d{4,5}[A-Z]{0,3})\b/i) ||
+    n.match(/\b(Core Ultra \d \d{3}[A-Z]{0,2})\b/i) ||
+    n.match(/\b(Ryzen (?:Threadripper )?(?:PRO )?\d+ \d{4}[A-Z0-9]{0,3})\b/i) ||
+    n.match(/\b(Xeon\b.*?\b[A-Z]?\d{4,5}[A-Z]?(?: v\d)?)\b/i) ||
+    n.match(/\b(Apple M\d(?: Pro| Max| Ultra)?)\b/i)
+  if (m) return m[1].replace(/^Core /i, '')
+  return n.replace(/\b(\d+(st|nd|rd|th) Gen|Intel|AMD|CPU|Processor|\d+-Core)\b/gi, '').replace(/@.*$/, '').replace(/\s+/g, ' ').trim()
+}
+function size(b: number): string {
+  if (b >= 1e12) return `${(b / 1e12).toFixed(2)} TB`
+  if (b >= 1e9) return `${(b / 1e9).toFixed(1)} GB`
+  return `${Math.round(b / 1e6)} MB`
+}
+function resetIn(iso: string | null, now: number): string {
+  if (!iso) return ''
+  const ms = new Date(iso).getTime() - now
+  if (!Number.isFinite(ms) || ms <= 0) return 'resetting'
+  const m = Math.round(ms / 60000)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 48) return `${h}h ${m % 60}m`
+  return `${Math.floor(h / 24)}d ${h % 24}h`
 }
 function upFor(s: number): string {
   const d = Math.floor(s / 86400)
@@ -278,7 +308,7 @@ function App() {
     const c = s!.hw?.cpuTemp
     return (
       <>
-        <Head label="CPU" icon="◆" right={cfg.showCpuName ? s!.cpuName : undefined} />
+        <Head label="CPU" icon="◆" right={cfg.showCpuName ? shortCpu(s!.cpuName) : undefined} />
         <div className={`big${large ? ' xl' : ''}`}>
           <span style={{ color: tone(s!.cpu.total) }}>{s!.cpu.total}</span>
           <span className="unit">%</span>
@@ -343,7 +373,7 @@ function App() {
               <div className="big">
                 <span style={{ color: tone(mem) }}>{gb(st.memUsed)}</span>
               </div>
-              <div className="sub">GB used of {gb(st.memTotal)}</div>
+              <div className="sub">GB used</div>
             </div>
             <Ring value={mem} color={tone(mem)} />
           </div>
@@ -366,10 +396,7 @@ function App() {
           <div className="graph">
             <Spark data={hist.gpu} color="var(--accent2)" len={len} />
           </div>
-          <div className="sub">
-            VRAM {gb(st.gpu.memUsed)} / {gb(st.gpu.memTotal)} GB
-            {st.gpu.power != null ? ` · ${Math.round(st.gpu.power)} W` : ''}
-          </div>
+          <div className="sub">VRAM {gb(st.gpu.memUsed)} GB</div>
         </div>
       )
     }
@@ -385,7 +412,7 @@ function App() {
               <div className="big">
                 <span style={{ color: tone(v) }}>{gb(st.gpu.memUsed)}</span>
               </div>
-              <div className="sub">GB used of {gb(st.gpu.memTotal)}</div>
+              <div className="sub">GB used</div>
             </div>
             <Ring value={v} color={tone(v)} />
           </div>
@@ -401,7 +428,7 @@ function App() {
         )
       return (
         <div className="tile" key={key}>
-          <Head label="CPU temp" icon="✦" right={st.hw.cpuTempSource ?? undefined} />
+          <Head label="CPU temp" icon="✦" right={st.hw.cpuTempSource === 'LibreHardwareMonitor' ? 'LHM' : st.hw.cpuTempSource ? 'Windows' : undefined} />
           <div className="big">
             <span style={{ color: tempTone(c) }}>{temp(c)}</span>
           </div>
@@ -426,7 +453,7 @@ function App() {
               <div className="big">
                 <span style={{ color: tone(u) }}>{gb(disk.total - disk.used)}</span>
               </div>
-              <div className="sub">GB free of {gb(disk.total)}</div>
+              <div className="sub">GB free</div>
             </div>
             <Ring value={u} color={tone(u)} />
           </div>
@@ -452,6 +479,13 @@ function App() {
               <span className="unit">{uu}</span>
             </div>
           </div>
+          {st.net?.totalDown != null && st.net.totalUp != null && (
+            <div className="sub totals">
+              <span className="arrow down">↓</span> {size(st.net.totalDown)}
+              <span className="gap" />
+              <span className="arrow up">↑</span> {size(st.net.totalUp)}
+            </div>
+          )}
         </div>
       )
     }
@@ -486,7 +520,28 @@ function App() {
             <span>{cpuPower != null ? Math.round(cpuPower) : '—'}</span>
             <span className="unit">W</span>
           </div>
-          <div className="sub">{cpuClock != null ? `Up to ${(cpuClock / 1000).toFixed(2)} GHz` : ''}</div>
+          <div className="sub">{cpuClock != null ? `${(cpuClock / 1000).toFixed(2)} GHz` : ''}</div>
+        </div>
+      )
+    }
+
+    if (kind === 'claude') {
+      const c = st.claude
+      const want = (k: string) => cfg.claudeWindows.includes(k.startsWith('model:') ? 'model' : k)
+      const wins = (c?.windows ?? []).filter((w) => want(w.key)).slice(0, 3)
+      if (!wins.length) return <Missing key={key} label="Claude" icon="✳" why={c?.error ?? 'Waiting for usage…'} />
+      return (
+        <div className="tile" key={key}>
+          <Head label="Claude" icon="✳" right={c?.error ? '!' : undefined} />
+          <div className={`rings n${wins.length}`}>
+            {wins.map((w) => (
+              <div key={w.key} className="ringcell">
+                <Ring value={w.pct} color={tone(w.pct)} />
+                <div className="ringlabel">{w.label}</div>
+                <div className="ringsub">{resetIn(w.resetsAt, clockNow)}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )
     }
