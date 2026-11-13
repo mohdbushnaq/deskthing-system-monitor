@@ -60,9 +60,9 @@ const DEFAULT_CFG: Cfg = {
   theme: 'dark',
   dayStart: 7,
   nightStart: 19,
-  textScale: 100,
-  numberScale: 100,
-  graphScale: 100,
+  textScale: 150,
+  numberScale: 150,
+  graphScale: 160,
   accent: '#4fc3f7',
   clock24: false,
   claudeWindows: ['session', 'weekly', 'model'],
@@ -188,28 +188,6 @@ function Spark({ data, color, len, min = 0, max = 100 }: { data: number[]; color
   )
 }
 
-function Ring({ value, color }: { value: number; color: string }) {
-  const r = 42
-  const c = 2 * Math.PI * r
-  return (
-    <svg className="ring" viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r={r} className="ring-bg" />
-      <circle
-        cx="50"
-        cy="50"
-        r={r}
-        stroke={color}
-        className="ring-fg"
-        strokeDasharray={`${(c * Math.min(100, value)) / 100} ${c}`}
-        transform="rotate(-90 50 50)"
-      />
-      <text x="50" y="50" className="ring-txt">
-        {value}%
-      </text>
-    </svg>
-  )
-}
-
 // ---------------------------------------------------------------- app
 function App() {
   const [s, setS] = useState<Stats | null>(null)
@@ -330,6 +308,41 @@ function App() {
     )
   }
 
+  // One ring that fills the tile, value and % inside it (RAM, disks, GPU memory)
+  function RingTile({ label, icon, right, value, unit, sub, load }: { label: string; icon: string; right?: string; value: string; unit: string; sub: string; load: number }) {
+    const r = 84
+    const circ = 2 * Math.PI * r
+    return (
+      <div className="tile">
+        <Head label={label} icon={icon} right={right} />
+        <div className="bigring-wrap">
+          <svg className="bigring" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r={r} className="ring-bg" style={{ strokeWidth: 16 }} />
+            <circle
+              cx="100"
+              cy="100"
+              r={r}
+              className="ring-fg"
+              style={{ strokeWidth: 16 }}
+              stroke={tone(load)}
+              strokeDasharray={`${(circ * Math.min(100, load)) / 100} ${circ}`}
+              transform="rotate(-90 100 100)"
+            />
+            <text x="100" y="94" className="br-main" style={{ fill: tone(load) }}>
+              {value}
+              <tspan className="br-unit" dx="4">
+                {unit}
+              </tspan>
+            </text>
+            <text x="100" y="132" className="br-sub">
+              {sub}
+            </text>
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
   function renderTile(kind: string, st: Stats, key: string) {
     if (kind === 'cpu')
       return (
@@ -369,20 +382,7 @@ function App() {
 
     if (kind === 'ram') {
       const mem = pct(st.memUsed, st.memTotal)
-      return (
-        <div className="tile" key={key}>
-          <Head label="Memory" icon="▤" />
-          <div className="split">
-            <div className="split-main">
-              <div className="big">
-                <span style={{ color: tone(mem) }}>{gb(st.memUsed)}</span>
-              </div>
-              <div className="sub">GB used</div>
-            </div>
-            <Ring value={mem} color={tone(mem)} />
-          </div>
-        </div>
-      )
+      return <RingTile key={key} label="RAM" icon="▤" right={`${gb(st.memTotal)} GB`} value={gb(st.memUsed)} unit="GB" sub={`${mem}% used`} load={mem} />
     }
 
     if (kind === 'gpu') {
@@ -408,20 +408,7 @@ function App() {
     if (kind === 'vram') {
       if (!st.gpu) return <Missing key={key} label="VRAM" icon="▣" why="No NVIDIA GPU found" />
       const v = pct(st.gpu.memUsed, st.gpu.memTotal)
-      return (
-        <div className="tile" key={key}>
-          <Head label="GPU memory" icon="▣" />
-          <div className="split">
-            <div className="split-main">
-              <div className="big">
-                <span style={{ color: tone(v) }}>{gb(st.gpu.memUsed)}</span>
-              </div>
-              <div className="sub">GB used</div>
-            </div>
-            <Ring value={v} color={tone(v)} />
-          </div>
-        </div>
-      )
+      return <RingTile key={key} label="VRAM" icon="▣" right={`${gb(st.gpu.memTotal)} GB`} value={gb(st.gpu.memUsed)} unit="GB" sub={`${v}% used`} load={v} />
     }
 
     if (kind === 'cpuTemp') {
@@ -449,20 +436,7 @@ function App() {
       const name = d === '/' ? 'Disk /' : `Disk ${d}:`
       if (!disk) return <Missing key={key} label={name} icon="◍" why="Drive not found" />
       const u = pct(disk.used, disk.total)
-      return (
-        <div className="tile" key={key}>
-          <Head label={name} icon="◍" />
-          <div className="split">
-            <div className="split-main">
-              <div className="big">
-                <span style={{ color: tone(u) }}>{gb(disk.total - disk.used)}</span>
-              </div>
-              <div className="sub">GB free</div>
-            </div>
-            <Ring value={u} color={tone(u)} />
-          </div>
-        </div>
-      )
+      return <RingTile key={key} label={name} icon="◍" right={`${gb(disk.total)} GB`} value={gb(disk.total - disk.used)} unit="GB" sub={`free · ${u}% used`} load={u} />
     }
 
     if (kind === 'net') {
@@ -532,19 +506,62 @@ function App() {
     if (kind === 'claude') {
       const c = lastClaude.current ?? st.claude
       const want = (k: string) => cfg.claudeWindows.includes(k.startsWith('model:') ? 'model' : k)
-      const wins = (c?.windows ?? []).filter((w) => want(w.key)).slice(0, 3)
-      if (!wins.length) return <Missing key={key} label="Claude" icon="✳" why={c?.error ?? 'Waiting for usage…'} />
+      const wins = (c?.windows ?? []).filter((w) => want(w.key))
+      const session = wins.find((w) => w.key === 'session')
+      const weekly = wins.find((w) => w.key === 'weekly')
+      const models = wins.filter((w) => w.key.startsWith('model:'))
+      if (!session && !weekly) return <Missing key={key} label="Claude" icon="✳" why={c?.error ?? 'Waiting for usage…'} />
+      const arc = (r: number, w: number, value: number, color: string) => {
+        const circ = 2 * Math.PI * r
+        return (
+          <>
+            <circle cx="100" cy="100" r={r} className="ring-bg" style={{ strokeWidth: w }} />
+            <circle
+              cx="100"
+              cy="100"
+              r={r}
+              className="ring-fg"
+              style={{ strokeWidth: w }}
+              stroke={color}
+              strokeDasharray={`${(circ * Math.min(100, value)) / 100} ${circ}`}
+              transform="rotate(-90 100 100)"
+            />
+          </>
+        )
+      }
+      const reset = session ? resetIn(session.resetsAt, clockNow) : ''
       return (
         <div className="tile" key={key}>
-          <Head label="Claude" icon="✳" right={c?.error ? '!' : undefined} />
-          <div className={`rings n${wins.length}`}>
-            {wins.map((w) => (
-              <div key={w.key} className="ringcell">
-                <Ring value={w.pct} color={tone(w.pct)} />
-                <div className="ringlabel">{w.label}</div>
-                <div className="ringsub">{resetIn(w.resetsAt, clockNow)}</div>
-              </div>
-            ))}
+          <Head
+            label="Claude"
+            icon="✳"
+            right={[...models.map((m) => `${m.label} ${m.pct}%`), c?.error ? '!' : ''].filter(Boolean).join(' · ') || undefined}
+          />
+          <div className="bigring-wrap">
+            <svg className="bigring" viewBox="0 0 200 200">
+              {session && arc(88, 14, session.pct, 'var(--accent)')}
+              {weekly && arc(session ? 64 : 88, session ? 10 : 14, weekly.pct, 'var(--accent2)')}
+              {session && (
+                <>
+                  <text x="100" y="76" className="cl-label" style={{ fill: 'var(--accent)' }}>
+                    SESSION
+                  </text>
+                  <text x="100" y="100" className="cl-main" style={{ fill: tone(session.pct) }}>
+                    {session.pct}%
+                  </text>
+                </>
+              )}
+              {weekly && (
+                <text x="100" y={session ? 124 : 100} className={session ? 'cl-week' : 'cl-main'} style={{ fill: 'var(--accent2)' }}>
+                  {session ? `WEEK ${weekly.pct}%` : `${weekly.pct}%`}
+                </text>
+              )}
+              {reset && (
+                <text x="100" y={session ? 141 : 124} className="cl-reset">
+                  ↻ {reset}
+                </text>
+              )}
+            </svg>
           </div>
         </div>
       )

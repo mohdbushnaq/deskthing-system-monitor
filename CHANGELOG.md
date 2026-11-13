@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0
+- Text, number and graph sizes now default to the maximum (150 / 150 / 160 %). Applied once on update.
+- "Memory" is now "RAM". RAM, disk and GPU memory tiles use one large ring that fills the tile, with the value (and a smaller GB) and % inside it.
+- Claude tile redesigned: a large outer ring for the current session and a smaller inner ring for the week. Session %, week % and time until the session resets sit inside. Per-model limits such as Fable show in the tile header.
+- The date under the clock no longer runs off the tile at large text sizes.
+
 ## 1.4.1
 - Claude usage tile no longer flickers to "Waiting for usage"; it keeps the last reading between checks.
 - New setting: check Claude usage every 30 s, 1, 2, 5 or 10 minutes (default 1 minute).

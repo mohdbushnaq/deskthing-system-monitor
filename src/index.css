@@ -176,3 +176,22 @@ body { font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Robo
 .rings .ring-txt { font-size: 24px; }
 .ringlabel { font-size: calc(2.7vh * var(--ts)); }
 .ringsub { font-size: calc(2.3vh * var(--ts)); }
+
+/* big single-ring tiles (RAM, Claude): the ring fills the tile, text lives inside it */
+.bigring-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; margin-top: 0.6vh; }
+.bigring { height: 100%; width: 100%; max-height: 100%; display: block; overflow: visible; }
+.bigring .ring-bg, .bigring .ring-fg { fill: none; }
+.br-main { font-family: 'Outfit Variable', system-ui, sans-serif; font-weight: 650; font-size: 46px; text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; }
+.br-unit { font-size: 20px; fill: var(--dim); font-weight: 600; }
+.br-sub { fill: var(--dim); font-family: 'Outfit Variable', system-ui, sans-serif; font-weight: 600; font-size: 22px; text-anchor: middle; dominant-baseline: central; }
+.cl-label { font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 2px; text-anchor: middle; dominant-baseline: central; }
+.cl-main { font-family: 'Outfit Variable', system-ui, sans-serif; font-weight: 650; font-size: 34px; text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; }
+.cl-week { font-family: 'Outfit Variable', system-ui, sans-serif; font-weight: 650; font-size: 15px; text-anchor: middle; dominant-baseline: central; }
+.cl-reset { fill: var(--dim); font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 600; font-size: 12px; text-anchor: middle; dominant-baseline: central; }
+.br-sub { font-size: 18px; }
+.cl-main { font-size: 36px; }
+.cl-week { font-size: 15px; }
+.cl-label { font-size: 11px; }
+.cl-reset { font-size: 12.5px; }
+.clock-date .date { font-size: min(calc(4.4vh * var(--ts)), 5.2vh); }
+.chip { white-space: nowrap; }

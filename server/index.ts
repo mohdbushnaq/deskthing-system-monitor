@@ -91,9 +91,9 @@ const DEFAULT: Cfg = {
   theme: 'dark',
   dayStart: 7,
   nightStart: 19,
-  textScale: 100,
-  numberScale: 100,
-  graphScale: 100,
+  textScale: 150,
+  numberScale: 150,
+  graphScale: 160,
   accent: '#4fc3f7',
   clock24: false,
   claudeSource: 'auto',
@@ -258,9 +258,9 @@ function settingsDef(): Record<string, unknown> {
     nightStart: select('nightStart', '🎨 Auto theme · night starts at', String(cfg.nightStart), hours, {
       dependsOn: [{ settingId: 'theme', isValue: 'auto' }]
     }),
-    textScale: range('textScale', '🎨 Text size (%)', cfg.textScale, 70, 150, 5, { description: 'Labels and small text.' }),
-    numberScale: range('numberScale', '🎨 Number size (%)', cfg.numberScale, 70, 150, 5, { description: 'The big values and the clock.' }),
-    graphScale: range('graphScale', '🎨 Graph size (%)', cfg.graphScale, 50, 160, 10, { description: 'Height of graphs and core bars.' }),
+    textScale: range('textScale', '🎨 Text size (%)', cfg.textScale, 70, 150, 5, { description: 'Labels and small text.', version: '1.5.0' }),
+    numberScale: range('numberScale', '🎨 Number size (%)', cfg.numberScale, 70, 150, 5, { description: 'The big values and the clock.', version: '1.5.0' }),
+    graphScale: range('graphScale', '🎨 Graph size (%)', cfg.graphScale, 50, 160, 10, { description: 'Height of graphs and core bars.', version: '1.5.0' }),
     accent: { id: 'accent', type: SETTING_TYPES.COLOR, label: '🎨 Accent colour', value: cfg.accent },
 
     // ---------- Data
