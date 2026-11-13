@@ -243,6 +243,8 @@ function settingsDef(): Record<string, unknown> {
       id: 'claudeSessionKey',
       type: SETTING_TYPES.STRING,
       label: '✳ claude.ai session key',
+      description:
+        'How to get it: 1) Open claude.ai in Chrome or Edge and make sure you are signed in. 2) Press F12 to open DevTools. 3) Go to Application → Storage → Cookies → https://claude.ai. 4) Find the row named "sessionKey" and copy its Value (it starts with sk-ant-). 5) Paste it here and press Save. Treat it like a password: it stays only in DeskThing on this PC. If you sign out of claude.ai you will need a new one.',
       value: cfg.claudeSessionKey
     },
 

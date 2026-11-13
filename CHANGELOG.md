@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.3
+- The claude.ai session key setting now explains step by step where to find the key.
+
 ## 1.5.2
 - Ring tiles show just the % under the value (no "used"). Disk now shows used GB like RAM, with the drive size in the header.
 - Claude: reset time shown without the arrow, slightly larger.
