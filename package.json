@@ -30,5 +30,12 @@
     "url": "https://github.com/mohdbushnaq/deskthing-system-monitor.git"
   },
   "author": "CutSmokey",
-  "license": "MIT"
+  "license": "MIT",
+  "contributors": [
+    {
+      "name": "Mohammed Bushnaq",
+      "email": "mohdbushnaq@gmail.com",
+      "url": "https://github.com/mohdbushnaq"
+    }
+  ]
 }
