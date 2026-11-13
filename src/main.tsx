@@ -382,7 +382,7 @@ function App() {
 
     if (kind === 'ram') {
       const mem = pct(st.memUsed, st.memTotal)
-      return <RingTile key={key} label="RAM" icon="▤" right={`${gb(st.memTotal)} GB`} value={gb(st.memUsed)} unit="GB" sub={`${mem}% used`} load={mem} />
+      return <RingTile key={key} label="RAM" icon="▤" right={`${gb(st.memTotal)} GB`} value={gb(st.memUsed)} unit="GB" sub={`${mem}%`} load={mem} />
     }
 
     if (kind === 'gpu') {
@@ -408,7 +408,7 @@ function App() {
     if (kind === 'vram') {
       if (!st.gpu) return <Missing key={key} label="VRAM" icon="▣" why="No NVIDIA GPU found" />
       const v = pct(st.gpu.memUsed, st.gpu.memTotal)
-      return <RingTile key={key} label="VRAM" icon="▣" right={`${gb(st.gpu.memTotal)} GB`} value={gb(st.gpu.memUsed)} unit="GB" sub={`${v}% used`} load={v} />
+      return <RingTile key={key} label="VRAM" icon="▣" right={`${gb(st.gpu.memTotal)} GB`} value={gb(st.gpu.memUsed)} unit="GB" sub={`${v}%`} load={v} />
     }
 
     if (kind === 'cpuTemp') {
@@ -436,7 +436,7 @@ function App() {
       const name = d === '/' ? 'Disk /' : `Disk ${d}:`
       if (!disk) return <Missing key={key} label={name} icon="◍" why="Drive not found" />
       const u = pct(disk.used, disk.total)
-      return <RingTile key={key} label={name} icon="◍" right={`${gb(disk.total)} GB`} value={gb(disk.total - disk.used)} unit="GB" sub={`free · ${u}% used`} load={u} />
+      return <RingTile key={key} label={name} icon="◍" right={`${gb(disk.total)} GB`} value={gb(disk.used)} unit="GB" sub={`${u}%`} load={u} />
     }
 
     if (kind === 'net') {
@@ -559,7 +559,7 @@ function App() {
               )}
               {reset && (
                 <text x="100" y={session ? 138 : 124} className="cl-reset">
-                  ↻ {reset}
+                  {reset}
                 </text>
               )}
             </svg>

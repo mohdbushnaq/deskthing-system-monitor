@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2
+- Ring tiles show just the % under the value (no "used"). Disk now shows used GB like RAM, with the drive size in the header.
+- Claude: reset time shown without the arrow, slightly larger.
+
 ## 1.5.1
 - Claude session reset countdown fixed: it now counts against the PC's clock, because the Car Thing's own clock isn't set (it showed thousands of days).
 - Bigger reset time in the Claude tile, and a bigger "% used" under the RAM, disk and VRAM values.
