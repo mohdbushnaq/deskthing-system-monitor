@@ -1,10 +1,12 @@
 name: Release
 
-# Push a tag like v1.3.0 to build the app and publish a GitHub release.
-# DeskThing reads latest.json from the latest release to offer updates.
+# Bump "version" in deskthing/manifest.json and push to main: this builds the app and publishes
+# release v<version> if it doesn't exist yet. DeskThing reads latest.json from the latest release to offer updates.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ['deskthing/manifest.json', 'server/**', 'src/**', '.github/workflows/release.yml']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,14 +21,16 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
-      - name: Check the tag matches the manifest version
-        run: |
-          v=$(node -p "require('./deskthing/manifest.json').version")
-          test "v$v" = "${GITHUB_REF_NAME}" || { echo "Tag ${GITHUB_REF_NAME} does not match manifest version $v"; exit 1; }
-      - name: Publish release
+      - name: Publish release for the manifest version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" dist/sysmon-*.zip dist/latest.json \
-            --title "System Monitor ${GITHUB_REF_NAME}" \
+          tag="v$(node -p "require('./deskthing/manifest.json').version")"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; bump the version in deskthing/manifest.json to publish a new one."
+            exit 0
+          fi
+          gh release create "$tag" dist/sysmon-*.zip dist/latest.json \
+            --target "${GITHUB_SHA}" \
+            --title "System Monitor $tag" \
             --notes-file .github/release-notes.md

@@ -60,7 +60,7 @@ npm install
 npm run build   # writes dist/sysmon-vX.Y.Z.zip and dist/latest.json
 ```
 
-Attach both files to a GitHub release. DeskThing reads `latest.json` to offer updates.
+To release: bump `version` in `deskthing/manifest.json` and `package.json`, then push to `main`. GitHub Actions builds the app and publishes release `vX.Y.Z` with the zip and `latest.json`, which DeskThing uses for its Update button.
 
 ## License
 
