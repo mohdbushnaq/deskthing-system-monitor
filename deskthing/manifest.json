@@ -4,7 +4,7 @@
   "isAudioSource": false,
   "requires": [],
   "label": "System Monitor",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "version_code": 11.0,
   "compatible_server": [
     11
@@ -12,7 +12,7 @@
   "compatible_client": [
     11
   ],
-  "description": "A live PC dashboard for your Car Thing: CPU with temperature, clock, RAM, disks, GPU, network, fans and power. Six tiles you can rearrange, light/dark/auto themes, adjustable text, number and graph sizes, refresh down to 0.25 s, and a 3D preview.",
+  "description": "A live PC dashboard for your Car Thing: CPU (load, GHz, cores), clock, RAM, disks, GPU, network with Windows data-usage totals, Claude usage, fans and power. Six tiles you can change by tapping them, light/dark/auto themes, adjustable sizes and a live 3D preview.",
   "author": "CutSmokey",
   "platforms": [
     "windows",

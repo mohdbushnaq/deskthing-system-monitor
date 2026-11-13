@@ -6,6 +6,10 @@ A live PC dashboard for the Spotify Car Thing running [DeskThing](https://deskth
 
 ## Features
 
+**New in 2.0:** tap a tile on the Car Thing to change it, network totals from Windows' Data usage (24 h / 7 days / 30 days / total), and settings grouped by what they change.
+
+![Tile picker](docs/tile-picker.png)
+
 - **Six tiles you can rearrange.** The left side holds two tiles (or one large CPU panel) and the right side is a 2×2 grid. Each slot can show any tile.
 - **Tiles:**
   - CPU: load, temperature, 1-minute graph and per-core bars
@@ -15,7 +19,7 @@ A live PC dashboard for the Spotify Car Thing running [DeskThing](https://deskth
   - GPU: load, temperature, VRAM and power
   - GPU memory
   - CPU temperature
-  - Network up and down, with totals for today, this week, month, year or all time
+  - Network up and down, with Windows data-usage totals (24 h, 7 days, 30 days, total)
   - Fans
   - Claude usage: session, weekly and per-model (e.g. Fable) limits as rings
   - CPU power and clock
@@ -30,6 +34,18 @@ A live PC dashboard for the Spotify Car Thing running [DeskThing](https://deskth
 | ![Light](docs/light.png) | ![Full CPU panel](docs/full-cpu-panel.png) |
 
 ![3D preview](docs/3d-preview.png)
+
+## Settings
+
+Settings are grouped and numbered in DeskThing:
+
+1. **Layout:** what each of the six tiles shows (or tap a tile on the Car Thing).
+2. **Look:** theme (dark / light / auto day-night), text, number and graph sizes, accent colour, amber/red thresholds.
+3. **CPU & clock:** GHz or temperature next to CPU %, core bars, model name, 12/24-hour clock.
+4. **Temperature:** CPU temperature source (LibreHardwareMonitor or Windows) and unit.
+5. **Network:** period for the download/upload totals.
+6. **Claude:** which rings, how often to check, and sign-in.
+7. **Refresh & preview:** refresh rate and the 3D preview.
 
 ## Install
 

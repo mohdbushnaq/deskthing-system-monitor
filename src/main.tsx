@@ -22,6 +22,8 @@ type Cfg = {
   accent: string
   clock24: boolean
   claudeWindows: string[]
+  tapToChange: boolean
+  tileOptions?: { label: string; value: string }[]
   tempUnit: 'C' | 'F'
   refreshMs: number
   warn: number
@@ -70,6 +72,7 @@ const DEFAULT_CFG: Cfg = {
   accent: '#4fc3f7',
   clock24: false,
   claudeWindows: ['session', 'weekly', 'model'],
+  tapToChange: true,
   tempUnit: 'C',
   refreshMs: 1000,
   warn: 60,
@@ -96,6 +99,13 @@ function subscribe(fn: Listener): () => void {
   const off = DeskThing.on('sysmon' as never, fn as never) as unknown
   DeskThing.send({ type: 'sysmon', request: 'hello' } as never)
   return typeof off === 'function' ? (off as () => void) : () => {}
+}
+function sendToServer(msg: { request: string; payload?: unknown }): void {
+  if (PREVIEW) {
+    fetch('/action', { method: 'POST', body: JSON.stringify(msg) }).catch(() => {})
+    return
+  }
+  DeskThing.send({ type: 'sysmon', ...msg } as never)
 }
 
 // ---------------------------------------------------------------- helpers
@@ -140,7 +150,10 @@ function upFor(s: number): string {
   const m = Math.floor((s % 3600) / 60)
   return d ? `${d}d ${h}h` : `${h}h ${m}m`
 }
-const PERIOD: Record<string, string> = { day: 'Today', week: 'Week', month: 'Month', year: 'Year', all: 'All', boot: 'Boot' }
+const PERIOD: Record<string, string> = { '24h': '24 h', '7d': '7 days', '30d': '30 days', total: 'Total', boot: 'Boot' }
+const ICONS: Record<string, string> = {
+  cpu: '◆', clock: '◷', ram: '▤', gpu: '▣', vram: '▣', cpuTemp: '✦', disk: '◍', net: '⇅', fans: '✲', cpuPower: 'ϟ', claude: '✳', uptime: '⌂', none: '▢'
+}
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -231,6 +244,8 @@ function App() {
   // Last Claude reading that had data; a gap in updates never blanks the tile
   const lastClaude = useRef<Stats['claude']>(null)
   const newestInst = useRef(0)
+  // the slot whose tile picker is open (tap a tile to change it)
+  const [picking, setPicking] = useState<string | null>(null)
 
   useEffect(() => {
     const off = subscribe((data) => {
@@ -638,12 +653,35 @@ function App() {
     ['--anim' as string]: `${Math.min(0.6, (cfg.refreshMs / 1000) * 0.8).toFixed(2)}s`
   }
 
+  const current = (slot: string): string =>
+    slot === 'leftTop' ? cfg.left[0] : slot === 'leftBottom' ? cfg.left[1] : cfg.tiles[Number(slot.slice(4)) - 1]
+  function tap(slot: string) {
+    if (cfg.tapToChange && (cfg.tileOptions?.length ?? 0) > 0) setPicking(slot)
+  }
+  function choose(slot: string, value: string) {
+    setPicking(null)
+    // show the change right away; the PC saves it to the settings
+    setCfg((c) => {
+      const left = [...c.left]
+      const tiles = [...c.tiles]
+      if (slot === 'leftTop') left[0] = value
+      else if (slot === 'leftBottom') left[1] = value
+      else tiles[Number(slot.slice(4)) - 1] = value
+      return { ...c, left, tiles }
+    })
+    sendToServer({ request: 'setTile', payload: { slot, value } })
+  }
+
   return (
     <div className={`app theme-${theme} layout-${cfg.layout}${stale ? ' stale' : ''}`} style={style}>
       {cfg.layout === 'split' ? (
         <>
-          <div className="slot l1">{renderTile(cfg.left[0], s, 'l0')}</div>
-          <div className="slot l2">{renderTile(cfg.left[1], s, 'l1')}</div>
+          <div className="slot l1" onClick={() => tap('leftTop')}>
+            {renderTile(cfg.left[0], s, 'l0')}
+          </div>
+          <div className="slot l2" onClick={() => tap('leftBottom')}>
+            {renderTile(cfg.left[1], s, 'l1')}
+          </div>
         </>
       ) : (
         <div className="slot lfull">
@@ -657,10 +695,34 @@ function App() {
         </div>
       )}
       {cfg.tiles.slice(0, 4).map((t, i) => (
-        <div key={i} className={`slot r${i + 1}`}>
+        <div key={i} className={`slot r${i + 1}`} onClick={() => tap(`tile${i + 1}`)}>
           {renderTile(t, s, `r${i}`)}
         </div>
       ))}
+      {picking && (
+        <div className="picker-backdrop" onClick={() => setPicking(null)}>
+          <div className="picker" onClick={(e) => e.stopPropagation()}>
+            <div className="picker-head">
+              <span>Choose a tile</span>
+              <button className="picker-close" onClick={() => setPicking(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="picker-grid">
+              {(cfg.tileOptions ?? []).map((o) => (
+                <button
+                  key={o.value}
+                  className={`picker-opt${o.value === current(picking) ? ' on' : ''}`}
+                  onClick={() => choose(picking, o.value)}
+                >
+                  <span className="picker-icon">{ICONS[o.value.split(':')[0]] ?? '▢'}</span>
+                  <span className="picker-label">{o.label.replace(/\s*\(.*\)\s*$/, '')}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

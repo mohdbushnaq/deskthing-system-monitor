@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0
+- Tap any tile on the Car Thing to change what it shows; the choice is saved to the PC settings. Setting: *1 · Layout · tap a tile on the Car Thing to change it*.
+- Network totals now come from Windows' own Data usage records instead of the app's own counting: last 24 hours, 7 days, 30 days, total, or since Windows started.
+- Settings reorganised into numbered groups: Layout, Look, CPU & clock, Temperature, Network, Claude, Refresh & preview.
+- Stable fallback: v1.8.0 (branch `stable-1.8.0`).
+
 ## 1.8.0
 - Network totals for a period you choose: today, this week, this month, this year, all time, or since Windows started. Totals are tracked per day and saved in DeskThing, including traffic while DeskThing was closed (as long as the PC wasn't restarted in between). History starts when you install 1.8.0.
 - Fixes values blinking (GHz, Claude usage) when an older copy of the app keeps running next to the new one after an update: the Car Thing now only listens to the newest copy.

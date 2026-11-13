@@ -72,7 +72,8 @@ type Cfg = {
   claudeSessionKey: string
   claudeWindows: string[]
   claudeEvery: number
-  netPeriod: 'boot' | 'day' | 'week' | 'month' | 'year' | 'all'
+  netPeriod: '24h' | '7d' | '30d' | 'total' | 'boot'
+  tapToChange: boolean
   tempSource: 'auto' | 'lhm' | 'windows' | 'off'
   lhmUrl: string
   tempUnit: 'C' | 'F'
@@ -102,7 +103,8 @@ const DEFAULT: Cfg = {
   claudeSessionKey: '',
   claudeWindows: ['session', 'weekly', 'model'],
   claudeEvery: 60,
-  netPeriod: 'day',
+  netPeriod: '30d',
+  tapToChange: true,
   tempSource: 'auto',
   lhmUrl: 'http://localhost:8085/data.json',
   tempUnit: 'C',
@@ -173,25 +175,49 @@ function settingsDef(): Record<string, unknown> {
   const bool = (id: string, label: string, value: boolean, extra = {}) => ({ id, type: SETTING_TYPES.BOOLEAN, label, value, ...extra })
   const splitOnly = { dependsOn: [{ settingId: 'layout', isValue: 'split' }] }
   const hours = Array.from({ length: 24 }, (_, h) => ({ label: `${String(h).padStart(2, '0')}:00`, value: String(h) }))
+  const tile = 'Tip: you can also tap a tile on the Car Thing to change it.'
 
-  // DeskThing lists settings in this order
+  // DeskThing lists settings in exactly this order, so they're grouped by what they change.
   return {
-    // ---------- Left side
+    // ---------- 1 · Layout
     layout: select(
       'layout',
-      '◧ Left side · layout',
+      '1 · Layout · left column',
       cfg.layout,
       [
-        { label: 'Two tiles (top and bottom)', value: 'split' },
-        { label: 'One large CPU panel', value: 'full' }
+        { label: 'Two tiles (6 tiles in total)', value: 'split' },
+        { label: 'One large CPU panel (4 tiles on the right)', value: 'full' }
       ],
-      { version: LAYOUT_VERSION, description: 'Two tiles gives 6 tiles in total. One large CPU panel gives 4 tiles on the right.' }
+      { version: LAYOUT_VERSION }
     ),
-    leftTop: select('leftTop', '◧ Left side · top tile', cfg.left[0], opts, { ...splitOnly, version: LAYOUT_VERSION }),
-    leftBottom: select('leftBottom', '◧ Left side · bottom tile', cfg.left[1], opts, { ...splitOnly, version: LAYOUT_VERSION }),
+    leftTop: select('leftTop', '1 · Layout · left, top', cfg.left[0], opts, { ...splitOnly, version: LAYOUT_VERSION, description: tile }),
+    leftBottom: select('leftBottom', '1 · Layout · left, bottom', cfg.left[1], opts, { ...splitOnly, version: LAYOUT_VERSION, description: tile }),
+    tile1: select('tile1', '1 · Layout · middle, top', cfg.tiles[0], opts, { version: LAYOUT_VERSION, description: tile }),
+    tile3: select('tile3', '1 · Layout · middle, bottom', cfg.tiles[2], opts, { version: LAYOUT_VERSION, description: tile }),
+    tile2: select('tile2', '1 · Layout · right, top', cfg.tiles[1], opts, { version: LAYOUT_VERSION, description: tile }),
+    tile4: select('tile4', '1 · Layout · right, bottom', cfg.tiles[3], opts, { version: LAYOUT_VERSION, description: tile }),
+    tapToChange: bool('tapToChange', '1 · Layout · tap a tile on the Car Thing to change it', cfg.tapToChange),
+
+    // ---------- 2 · Look
+    theme: select('theme', '2 · Look · theme', cfg.theme, [
+      { label: 'Dark', value: 'dark' },
+      { label: 'Light', value: 'light' },
+      { label: 'Auto: light by day, dark by night', value: 'auto' }
+    ]),
+    dayStart: select('dayStart', '2 · Look · day starts at', String(cfg.dayStart), hours, { dependsOn: [{ settingId: 'theme', isValue: 'auto' }] }),
+    nightStart: select('nightStart', '2 · Look · night starts at', String(cfg.nightStart), hours, { dependsOn: [{ settingId: 'theme', isValue: 'auto' }] }),
+    textScale: range('textScale', '2 · Look · text size (%)', cfg.textScale, 70, 150, 5, { description: 'Labels and small text.', version: '1.5.0' }),
+    numberScale: range('numberScale', '2 · Look · number size (%)', cfg.numberScale, 70, 150, 5, { description: 'The big values and the clock.', version: '1.5.0' }),
+    graphScale: range('graphScale', '2 · Look · graph size (%)', cfg.graphScale, 50, 160, 10, { description: 'Graphs, core bars and rings.', version: '1.5.0' }),
+    accent: { id: 'accent', type: SETTING_TYPES.COLOR, label: '2 · Look · accent colour', value: cfg.accent },
+    warn: range('warn', '2 · Look · amber above (load %)', cfg.warn, 30, 95, 5),
+    hot: range('hot', '2 · Look · red above (load %)', cfg.hot, 40, 100, 5),
+    tempWarn: range('tempWarn', '2 · Look · red above (temperature °C)', cfg.tempWarn, 50, 100, 5),
+
+    // ---------- 3 · CPU & clock
     cpuChip: select(
       'cpuChip',
-      '◧ CPU · next to CPU %',
+      '3 · CPU · next to CPU %',
       cfg.cpuChip,
       [
         { label: 'Clock speed (GHz)', value: 'speed' },
@@ -200,37 +226,52 @@ function settingsDef(): Record<string, unknown> {
       ],
       { version: '1.7.0' }
     ),
-    showCores: bool('showCores', '◧ CPU · show per-core bars', cfg.showCores),
-    showCpuName: bool('showCpuName', '◧ CPU · show model name', cfg.showCpuName),
-    clock24: bool('clock24', '◧ Clock · 24-hour time (off = AM/PM)', cfg.clock24, { version: '1.4.0' }),
+    showCores: bool('showCores', '3 · CPU · per-core bars', cfg.showCores),
+    showCpuName: bool('showCpuName', '3 · CPU · model name', cfg.showCpuName),
+    clock24: bool('clock24', '3 · Clock · 24-hour time (off = AM/PM)', cfg.clock24, { version: '1.4.0' }),
 
-    // ---------- Right side
-    tile1: select('tile1', '◨ Right side · top left', cfg.tiles[0], opts, { version: LAYOUT_VERSION }),
-    tile2: select('tile2', '◨ Right side · top right', cfg.tiles[1], opts, { version: LAYOUT_VERSION }),
-    tile3: select('tile3', '◨ Right side · bottom left', cfg.tiles[2], opts, { version: LAYOUT_VERSION }),
-    tile4: select('tile4', '◨ Right side · bottom right', cfg.tiles[3], opts, { version: LAYOUT_VERSION }),
+    // ---------- 4 · Temperatures
+    tempSource: select(
+      'tempSource',
+      '4 · Temperature · CPU source',
+      cfg.tempSource,
+      [
+        { label: 'Auto (LibreHardwareMonitor, else Windows)', value: 'auto' },
+        { label: 'LibreHardwareMonitor only', value: 'lhm' },
+        { label: 'Windows thermal zone only', value: 'windows' },
+        { label: 'Off', value: 'off' }
+      ],
+      {
+        description:
+          'LibreHardwareMonitor gives the real CPU package temperature (run it as admin and turn on Options → Remote Web Server). The Windows thermal zone is a fixed motherboard value on many PCs.'
+      }
+    ),
+    lhmUrl: { id: 'lhmUrl', type: SETTING_TYPES.STRING, label: '4 · Temperature · LibreHardwareMonitor URL', value: cfg.lhmUrl },
+    tempUnit: select('tempUnit', '4 · Temperature · unit', cfg.tempUnit, [
+      { label: 'Celsius', value: 'C' },
+      { label: 'Fahrenheit', value: 'F' }
+    ]),
 
-    // ---------- Network
+    // ---------- 5 · Network
     netPeriod: select(
       'netPeriod',
-      '⇅ Network · totals for',
+      '5 · Network · totals for',
       cfg.netPeriod,
       [
-        { label: 'Today', value: 'day' },
-        { label: 'This week (from Monday)', value: 'week' },
-        { label: 'This month', value: 'month' },
-        { label: 'This year', value: 'year' },
-        { label: 'All time (since installing 1.8.0)', value: 'all' },
+        { label: 'Last 24 hours', value: '24h' },
+        { label: 'Last 7 days', value: '7d' },
+        { label: 'Last 30 days', value: '30d' },
+        { label: 'Total (everything Windows has recorded)', value: 'total' },
         { label: 'Since Windows started', value: 'boot' }
       ],
-      { description: 'Totals are counted by this app and saved in DeskThing, including traffic while DeskThing was closed (as long as the PC was not restarted in between).' }
+      { version: '2.0.0', description: 'Read from Windows (the same figures as Settings → Network & internet → Data usage), all networks added together.' }
     ),
 
-    // ---------- Claude usage
+    // ---------- 6 · Claude usage
     claudeWindows: {
       id: 'claudeWindows',
       type: SETTING_TYPES.MULTISELECT,
-      label: '✳ Claude usage · rings to show',
+      label: '6 · Claude · rings to show',
       value: cfg.claudeWindows,
       options: [
         { label: 'Current session (5-hour)', value: 'session' },
@@ -240,7 +281,7 @@ function settingsDef(): Record<string, unknown> {
     },
     claudeEvery: select(
       'claudeEvery',
-      '✳ Claude usage · check every',
+      '6 · Claude · check every',
       String(cfg.claudeEvery),
       [
         { label: '30 seconds', value: '30' },
@@ -253,7 +294,7 @@ function settingsDef(): Record<string, unknown> {
     ),
     claudeSource: select(
       'claudeSource',
-      '✳ Claude usage · sign-in',
+      '6 · Claude · sign-in',
       cfg.claudeSource,
       [
         { label: 'Auto (Claude Code login, else session key)', value: 'auto' },
@@ -261,74 +302,35 @@ function settingsDef(): Record<string, unknown> {
         { label: 'claude.ai session key', value: 'web' },
         { label: 'Off', value: 'off' }
       ],
-      {
-        description:
-          'Claude Code login: install Claude Code and sign in with your Claude account once; its saved login is read from the file below. Session key: paste the "sessionKey" cookie from claude.ai. It works like a password and is only stored in DeskThing on this PC.'
-      }
+      { description: 'Claude Code login: install Claude Code and sign in once; its saved login is read from the file below. Session key: see the next setting.' }
     ),
-    claudeCredPath: { id: 'claudeCredPath', type: SETTING_TYPES.STRING, label: '✳ Claude Code login file', value: cfg.claudeCredPath },
     claudeSessionKey: {
       id: 'claudeSessionKey',
       type: SETTING_TYPES.STRING,
-      label: '✳ claude.ai session key',
+      label: '6 · Claude · claude.ai session key',
       description:
         'How to get it: 1) Open claude.ai in Chrome or Edge and make sure you are signed in. 2) Press F12 to open DevTools. 3) Go to Application → Storage → Cookies → https://claude.ai. 4) Find the row named "sessionKey" and copy its Value (it starts with sk-ant-). 5) Paste it here and press Save. Treat it like a password: it stays only in DeskThing on this PC. If you sign out of claude.ai you will need a new one.',
       value: cfg.claudeSessionKey
     },
+    claudeCredPath: { id: 'claudeCredPath', type: SETTING_TYPES.STRING, label: '6 · Claude · Claude Code login file', value: cfg.claudeCredPath },
 
-    // ---------- Look
-    theme: select('theme', '🎨 Theme', cfg.theme, [
-      { label: 'Dark', value: 'dark' },
-      { label: 'Light', value: 'light' },
-      { label: 'Auto: light by day, dark by night', value: 'auto' }
-    ]),
-    dayStart: select('dayStart', '🎨 Auto theme · day starts at', String(cfg.dayStart), hours, {
-      dependsOn: [{ settingId: 'theme', isValue: 'auto' }]
-    }),
-    nightStart: select('nightStart', '🎨 Auto theme · night starts at', String(cfg.nightStart), hours, {
-      dependsOn: [{ settingId: 'theme', isValue: 'auto' }]
-    }),
-    textScale: range('textScale', '🎨 Text size (%)', cfg.textScale, 70, 150, 5, { description: 'Labels and small text.', version: '1.5.0' }),
-    numberScale: range('numberScale', '🎨 Number size (%)', cfg.numberScale, 70, 150, 5, { description: 'The big values and the clock.', version: '1.5.0' }),
-    graphScale: range('graphScale', '🎨 Graph size (%)', cfg.graphScale, 50, 160, 10, { description: 'Height of graphs and core bars.', version: '1.5.0' }),
-    accent: { id: 'accent', type: SETTING_TYPES.COLOR, label: '🎨 Accent colour', value: cfg.accent },
-
-    // ---------- Data
-    refreshMs: select('refreshMs', '⏱ Refresh every', String(cfg.refreshMs), [
-      { label: '0.25 s', value: '250' },
-      { label: '0.5 s', value: '500' },
-      { label: '0.75 s', value: '750' },
-      { label: '1 s', value: '1000' },
-      { label: '2 s', value: '2000' },
-      { label: '3 s', value: '3000' },
-      { label: '5 s', value: '5000' }
-    ], { description: 'CPU, RAM and disks follow this. GPU and network update at most once a second.' }),
-    tempSource: select(
-      'tempSource',
-      '🌡 CPU temperature source',
-      cfg.tempSource,
+    // ---------- 7 · Updates & preview
+    refreshMs: select(
+      'refreshMs',
+      '7 · Refresh every',
+      String(cfg.refreshMs),
       [
-        { label: 'Auto (LibreHardwareMonitor, else Windows)', value: 'auto' },
-        { label: 'LibreHardwareMonitor only', value: 'lhm' },
-        { label: 'Windows thermal zone only', value: 'windows' },
-        { label: 'Off', value: 'off' }
+        { label: '0.25 s', value: '250' },
+        { label: '0.5 s', value: '500' },
+        { label: '0.75 s', value: '750' },
+        { label: '1 s', value: '1000' },
+        { label: '2 s', value: '2000' },
+        { label: '3 s', value: '3000' },
+        { label: '5 s', value: '5000' }
       ],
-      {
-        description:
-          'LibreHardwareMonitor gives the real CPU package temperature (run it as admin and turn on Options → Remote Web Server). The Windows thermal zone is only an approximation on most PCs.'
-      }
+      { description: 'CPU, RAM and disks follow this. GPU and network update at most once a second.' }
     ),
-    lhmUrl: { id: 'lhmUrl', type: SETTING_TYPES.STRING, label: '🌡 LibreHardwareMonitor URL', value: cfg.lhmUrl },
-    tempUnit: select('tempUnit', '🌡 Temperature unit', cfg.tempUnit, [
-      { label: 'Celsius', value: 'C' },
-      { label: 'Fahrenheit', value: 'F' }
-    ]),
-    warn: range('warn', '🚦 Amber above (load %)', cfg.warn, 30, 95, 5),
-    hot: range('hot', '🚦 Red above (load %)', cfg.hot, 40, 100, 5),
-    tempWarn: range('tempWarn', '🚦 Red above (temperature °C)', cfg.tempWarn, 50, 100, 5),
-
-    // ---------- Preview
-    openPreview: bool('openPreview', '🖥 Open the 3D Car Thing preview after saving', false, {
+    openPreview: bool('openPreview', '7 · Open the 3D preview after saving', false, {
       description: `Turn on and press Save to open a live 3D preview in your browser (http://localhost:${PREVIEW_PORT}/). It switches itself off again.`
     })
   }
@@ -365,7 +367,8 @@ function applySettings(s: Record<string, { value?: unknown }> | null | undefined
     claudeSessionKey: typeof v('claudeSessionKey') === 'string' ? (v('claudeSessionKey') as string).trim() : '',
     claudeWindows: Array.isArray(v('claudeWindows')) ? (v('claudeWindows') as string[]) : DEFAULT.claudeWindows,
     claudeEvery: Math.min(600, Math.max(30, n('claudeEvery'))),
-    netPeriod: oneOf('netPeriod', ['boot', 'day', 'week', 'month', 'year', 'all']),
+    netPeriod: oneOf('netPeriod', ['24h', '7d', '30d', 'total', 'boot']),
+    tapToChange: bool('tapToChange'),
     tempSource: oneOf('tempSource', ['auto', 'lhm', 'windows', 'off']),
     lhmUrl: str('lhmUrl'),
     tempUnit: oneOf('tempUnit', ['C', 'F']),
@@ -437,77 +440,51 @@ let net: { down: number; up: number; totalDown: number | null; totalUp: number |
 // Totals since Windows started, from 64-bit adapter counters (netstat's counters wrap at 4 GB)
 let netTotals: { down: number; up: number } | null = null
 let totalsBusy = false
-// ---- Download/upload history, kept per day and saved in DeskThing's app data
-type DayTotals = Record<string, { d: number; u: number }>
-type NetHistory = { days: DayTotals; last: { boot: number; down: number; up: number } | null }
-let netHistory: NetHistory = { days: {}, last: null }
-let historyDirty = false
-const bootTime = () => Math.round((Date.now() - os.uptime() * 1000) / 60000) * 60000
-const dayKey = (t: Date) => `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
-
-async function loadNetHistory(): Promise<void> {
+// ---- Download/upload totals from Windows' own Data usage records (Settings → Network & internet → Data usage).
+// Uses the WinRT NetworkInformation API through PowerShell; all connection profiles (Wi-Fi, Ethernet…) are added up.
+let usageTotals: { period: string; down: number; up: number; at: number } | null = null
+let usageBusy = false
+const PERIOD_HOURS: Record<string, number> = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30, total: 24 * 365 * 5 }
+function dataUsageScript(hours: number): string {
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    'Add-Type -AssemblyName System.Runtime.WindowsRuntime',
+    '$null = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]',
+    "$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]",
+    '$listType = [System.Collections.Generic.IReadOnlyList[Windows.Networking.Connectivity.NetworkUsage]]',
+    '$await = $asTask.MakeGenericMethod($listType)',
+    '$end = [DateTimeOffset]::Now',
+    `$start = $end.AddHours(-${hours})`,
+    '$states = New-Object Windows.Networking.Connectivity.NetworkUsageStates',
+    '$states.Roaming = [Windows.Networking.Connectivity.TriStates]::DoNotCare',
+    '$states.Shared = [Windows.Networking.Connectivity.TriStates]::DoNotCare',
+    '[UInt64]$rx = 0; [UInt64]$tx = 0',
+    'foreach ($p in [Windows.Networking.Connectivity.NetworkInformation]::GetConnectionProfiles()) {',
+    '  try {',
+    '    $task = $await.Invoke($null, @($p.GetNetworkUsageAsync($start, $end, [Windows.Networking.Connectivity.DataUsageGranularity]::Total, $states)))',
+    '    if ($task.Wait(10000)) { foreach ($u in $task.Result) { $rx += $u.BytesReceived; $tx += $u.BytesSent } }',
+    '  } catch { }',
+    '}',
+    'Write-Output "$rx $tx"'
+  ].join('\n')
+}
+async function readDataUsage(force = false): Promise<void> {
+  if (!WIN || usageBusy || cfg.netPeriod === 'boot' || !shown().includes('net')) return
+  if (!force && usageTotals && usageTotals.period === cfg.netPeriod && Date.now() - usageTotals.at < 60000) return
+  usageBusy = true
   try {
-    const data = (await DeskThing.getData()) as { netHistory?: NetHistory } | null
-    if (data?.netHistory?.days) netHistory = data.netHistory
-  } catch {
-    /* first run */
+    const encoded = Buffer.from(dataUsageScript(PERIOD_HOURS[cfg.netPeriod] ?? 720), 'utf16le').toString('base64')
+    const out = await run(PS, ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], 30000)
+    const [d, u] = (out ?? '').trim().split(/\s+/).map(Number)
+    if (Number.isFinite(d) && Number.isFinite(u)) usageTotals = { period: cfg.netPeriod, down: d, up: u, at: Date.now() }
+    else console.warn('[sysmon] Windows data usage unavailable:', (out ?? '').slice(0, 200))
+  } finally {
+    usageBusy = false
   }
 }
-function saveNetHistory(): void {
-  if (!historyDirty) return
-  historyDirty = false
-  try {
-    DeskThing.saveData({ netHistory } as never)
-  } catch {
-    /* ignore */
-  }
-}
-
-function recordNet(down: number, up: number): void {
-  const boot = bootTime()
-  const last = netHistory.last
-  let dd = 0
-  let du = 0
-  if (last && Math.abs(last.boot - boot) < 180000 && down >= last.down && up >= last.up) {
-    dd = down - last.down
-    du = up - last.up
-  } else if (last) {
-    // the PC restarted (or the counters reset): everything counted so far this boot is new
-    dd = down
-    du = up
-  } // very first run: start counting from now
-  netHistory.last = { boot, down, up }
-  if (dd || du) {
-    const k = dayKey(new Date())
-    const day = netHistory.days[k] ?? { d: 0, u: 0 }
-    netHistory.days[k] = { d: day.d + dd, u: day.u + du }
-    // keep about two years of days
-    const keys = Object.keys(netHistory.days).sort()
-    for (const old of keys.slice(0, Math.max(0, keys.length - 800))) delete netHistory.days[old]
-  }
-  historyDirty = true
-}
-
 function periodTotals(): { down: number; up: number } | null {
   if (cfg.netPeriod === 'boot') return netTotals
-  const now = new Date()
-  let from = ''
-  if (cfg.netPeriod === 'day') from = dayKey(now)
-  else if (cfg.netPeriod === 'week') {
-    const m = new Date(now)
-    m.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-    from = dayKey(m)
-  } else if (cfg.netPeriod === 'month') from = `${dayKey(now).slice(0, 7)}-01`
-  else if (cfg.netPeriod === 'year') from = `${now.getFullYear()}-01-01`
-  let down = 0
-  let up = 0
-  for (const [k, v] of Object.entries(netHistory.days)) {
-    if (k >= from) {
-      down += v.d
-      up += v.u
-    }
-  }
-  return { down, up }
+  return usageTotals && usageTotals.period === cfg.netPeriod ? usageTotals : null
 }
 
 async function readNetTotals(): Promise<void> {
@@ -525,10 +502,7 @@ async function readNetTotals(): Promise<void> {
       8000
     )
     const [d, u] = (out ?? '').trim().split(/\s+/).map(Number)
-    if (Number.isFinite(d) && Number.isFinite(u)) {
-      netTotals = { down: d, up: u }
-      recordNet(d, u)
-    }
+    if (Number.isFinite(d) && Number.isFinite(u)) netTotals = { down: d, up: u }
   } finally {
     totalsBusy = false
   }
@@ -886,7 +860,35 @@ function broadcast(msg: Msg): void {
 
 const PROCESS_START = Date.now()
 let lastStats: Msg | null = null
-const configMsg = (): Msg => ({ request: 'config', payload: { ...cfg, version: manifest.version } })
+const configMsg = (): Msg => ({ request: 'config', payload: { ...cfg, version: manifest.version, tileOptions: tileOptions() } })
+
+// ---- Changing a tile from the Car Thing (tap a tile, pick a new one)
+const SLOTS = ['leftTop', 'leftBottom', 'tile1', 'tile2', 'tile3', 'tile4'] as const
+async function setTile(slot: string, value: string): Promise<void> {
+  if (!(SLOTS as readonly string[]).includes(slot) || !tileOptions().some((o) => o.value === value)) return
+  if (slot === 'leftTop') cfg.left[0] = value
+  else if (slot === 'leftBottom') cfg.left[1] = value
+  else cfg.tiles[Number(slot.slice(4)) - 1] = value
+  broadcast(configMsg())
+  void readHw()
+  void readClaude()
+  void readDataUsage(true)
+  try {
+    // keep DeskThing's settings page in step with the choice
+    const def = settingsDef()[slot] as object
+    await DeskThing.setSettings({ [slot]: { ...def, value } } as never)
+  } catch (e) {
+    console.warn('[sysmon] could not save tile choice', e)
+  }
+}
+function handleClientMessage(data: { request?: string; payload?: { slot?: string; value?: string } } | undefined): void {
+  if (data?.request === 'setTile' && data.payload?.slot && data.payload.value) {
+    void setTile(data.payload.slot, data.payload.value)
+    return
+  }
+  DeskThing.send({ type: 'sysmon', ...configMsg() } as never)
+  sendStats()
+}
 
 function sendStats(): void {
   const total = os.totalmem()
@@ -937,6 +939,20 @@ function startPreviewServer(): void {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
       return res.end(PREVIEW_HTML)
     }
+    if (url.pathname === '/action' && req.method === 'POST') {
+      let body = ''
+      req.on('data', (c) => (body += c))
+      req.on('end', () => {
+        try {
+          handleClientMessage(JSON.parse(body))
+        } catch {
+          /* ignore */
+        }
+        res.writeHead(204)
+        res.end()
+      })
+      return
+    }
     if (url.pathname === '/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
       res.write(`data: ${JSON.stringify(configMsg())}\n\n`)
@@ -986,7 +1002,7 @@ function schedule(): void {
     // readClaude only calls the API once the chosen interval (30 s – 10 min) has passed
     DeskThing.setInterval(async () => readClaude(), 5000),
     DeskThing.setInterval(async () => readNetTotals(), 10000),
-    DeskThing.setInterval(async () => saveNetHistory(), 300000),
+    DeskThing.setInterval(async () => readDataUsage(), 10000),
     DeskThing.setInterval(async () => readCpuSpeed(), Math.max(2000, ms * 2))
   ]
 }
@@ -1019,23 +1035,20 @@ const start = async (): Promise<void> => {
     broadcast(configMsg())
     void readHw()
     void readClaude()
+    void readDataUsage(true)
     void handlePreviewToggle(data.payload)
   }) as never)
 
-  DeskThing.on('sysmon' as never, (() => {
-    DeskThing.send({ type: 'sysmon', ...configMsg() } as never)
-    sendStats()
-  }) as never)
+  DeskThing.on('sysmon' as never, handleClientMessage as never)
 
   startPreviewServer()
-  await loadNetHistory()
+  void readDataUsage(true)
   await Promise.all([readGpu(), readNet(), readHw(), readClaude(true), readNetTotals(), readCpuSpeed()])
   schedule()
   broadcast(configMsg())
 }
 
 const stop = async (): Promise<void> => {
-  saveNetHistory()
   timers.forEach((t) => t())
   timers = []
   sseClients.forEach((r) => r.end())
