@@ -4,6 +4,7 @@ import { DeskThing } from '@deskthing/client'
 import '@fontsource-variable/outfit'
 import '@fontsource-variable/inter'
 import './index.css'
+import manifest from '../deskthing/manifest.json'
 
 type Cfg = {
   layout: 'split' | 'full'
@@ -194,6 +195,17 @@ function App() {
   useEffect(() => {
     const off = subscribe((data) => {
       if (data.request === 'config' && data.payload) {
+        // After an update the Car Thing can keep showing a cached copy of the old app. If the PC side runs a
+        // newer version than this page, reload this page once with a cache-busting query.
+        const serverVersion = (data.payload as { version?: string }).version
+        if (!PREVIEW && serverVersion && serverVersion !== manifest.version) {
+          const tried = sessionStorage.getItem('sysmon-reload')
+          if (tried !== serverVersion) {
+            sessionStorage.setItem('sysmon-reload', serverVersion)
+            location.replace(`${location.pathname}?v=${encodeURIComponent(serverVersion)}&t=${Date.now()}`)
+            return
+          }
+        }
         const next = { ...DEFAULT_CFG, ...(data.payload as Partial<Cfg>) }
         lenRef.current = historyLen(next.refreshMs)
         setCfg(next)
@@ -330,9 +342,8 @@ function App() {
             <div className="split-main">
               <div className="big">
                 <span style={{ color: tone(mem) }}>{gb(st.memUsed)}</span>
-                <span className="unit">GB</span>
               </div>
-              <div className="sub">of {gb(st.memTotal)} GB</div>
+              <div className="sub">GB used of {gb(st.memTotal)}</div>
             </div>
             <Ring value={mem} color={tone(mem)} />
           </div>
@@ -373,9 +384,8 @@ function App() {
             <div className="split-main">
               <div className="big">
                 <span style={{ color: tone(v) }}>{gb(st.gpu.memUsed)}</span>
-                <span className="unit">GB</span>
               </div>
-              <div className="sub">of {gb(st.gpu.memTotal)} GB</div>
+              <div className="sub">GB used of {gb(st.gpu.memTotal)}</div>
             </div>
             <Ring value={v} color={tone(v)} />
           </div>
@@ -415,9 +425,8 @@ function App() {
             <div className="split-main">
               <div className="big">
                 <span style={{ color: tone(u) }}>{gb(disk.total - disk.used)}</span>
-                <span className="unit">GB</span>
               </div>
-              <div className="sub">free of {gb(disk.total)} GB</div>
+              <div className="sub">GB free of {gb(disk.total)}</div>
             </div>
             <Ring value={u} color={tone(u)} />
           </div>

@@ -6,6 +6,7 @@ import path from 'node:path'
 import http from 'node:http'
 import { execFile } from 'node:child_process'
 import { PREVIEW_HTML } from './preview'
+import manifest from '../deskthing/manifest.json'
 
 // DeskThing starts app servers with a nearly empty environment (no PATH, SystemRoot, ProgramFiles).
 // Windows tools such as nvidia-smi, netstat and PowerShell fail without them, so fill in the usual defaults.
@@ -503,7 +504,7 @@ function broadcast(msg: Msg): void {
 }
 
 let lastStats: Msg | null = null
-const configMsg = (): Msg => ({ request: 'config', payload: cfg })
+const configMsg = (): Msg => ({ request: 'config', payload: { ...cfg, version: manifest.version } })
 
 function sendStats(): void {
   const total = os.totalmem()
